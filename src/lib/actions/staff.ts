@@ -17,7 +17,7 @@ export async function getStaffMembers(): Promise<Profile[]> {
       .from("profiles")
       .select("business_id")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!currentProfile?.business_id) return [];
 
@@ -54,7 +54,7 @@ export async function inviteStaffMember(formData: {
     .from("profiles")
     .select("business_id, role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile?.business_id) throw new Error("Business profile not found");
   if (profile.role !== "owner" && profile.role !== "admin") {

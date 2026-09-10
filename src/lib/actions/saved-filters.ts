@@ -16,7 +16,7 @@ export async function getSavedFilters(tableName: "customers" | "inventory" | "in
       .from("profiles")
       .select("business_id")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile?.business_id) return [];
 

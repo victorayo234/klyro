@@ -48,7 +48,7 @@ export default async function DashboardOverviewPage() {
       .from("profiles")
       .select("role, business_id, businesses(*)")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (profile) {
       role = profile.role || "owner";

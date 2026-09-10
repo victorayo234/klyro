@@ -26,7 +26,7 @@ export async function completeOnboarding(data: OnboardingData) {
       .from("profiles")
       .select("business_id")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile || !profile.business_id) {
       return { success: false, error: "Business profile not found" };
@@ -85,7 +85,7 @@ export async function getBusinessOnboardingStatus() {
       .from("profiles")
       .select("role, business_id, businesses(*)")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!profile) return null;
     return {

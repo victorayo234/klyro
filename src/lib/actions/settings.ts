@@ -28,7 +28,7 @@ export async function updateBusinessSettings(updates: {
     .from("profiles")
     .select("business_id, role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile?.business_id) throw new Error("Business profile not found");
   if (profile.role !== "owner" && profile.role !== "admin") {
@@ -66,7 +66,7 @@ export async function exportAllBusinessData() {
     .from("profiles")
     .select("business_id, role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile?.business_id) throw new Error("Business profile not found");
 
@@ -80,7 +80,7 @@ export async function exportAllBusinessData() {
     { data: invoices },
     { data: activities },
   ] = await Promise.all([
-    supabase.from("businesses").select("*").eq("id", profile.business_id).single(),
+    supabase.from("businesses").select("*").eq("id", profile.business_id).maybeSingle(),
     supabase.from("customers").select("*").eq("business_id", profile.business_id),
     supabase.from("products").select("*").eq("business_id", profile.business_id),
     supabase.from("sales").select("*, sale_items(*)").eq("business_id", profile.business_id),

@@ -76,13 +76,13 @@ export default function SettingsPage() {
         .from("profiles")
         .select("business_id")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
       if (!profile?.business_id) return;
       const { data: biz } = await supabase
         .from("businesses")
         .select("*")
         .eq("id", profile.business_id)
-        .single();
+        .maybeSingle();
       if (biz) {
         setBizName(biz.name || "");
         setBizCurrency(biz.currency || "USD");

@@ -29,7 +29,7 @@ export default async function DashboardLayout({
         .from("profiles")
         .select("full_name, role, business_id, businesses(name, industry)")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
         userName = profile.full_name || user.email?.split("@")[0] || "User";
