@@ -17,8 +17,15 @@ import {
   Sun,
   Moon,
   Search,
+  Download,
+  RefreshCw,
+  Upload,
+  Target,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { exportAllBusinessData } from "@/lib/actions/settings";
+import { processDueRecurringInvoices } from "@/lib/actions/recurring-invoices";
+import { toast } from "sonner";
 
 export function CommandPalette() {
   const router = useRouter();
@@ -28,6 +35,8 @@ export function CommandPalette() {
     toggleCommandPalette,
     toggleDarkMode,
     isDarkMode,
+    themePreference,
+    setTheme,
   } = useAppStore();
 
   React.useEffect(() => {
@@ -47,6 +56,35 @@ export function CommandPalette() {
   const runCommand = (command: () => void) => {
     closeCommandPalette();
     command();
+  };
+
+  const handleExportData = async () => {
+    try {
+      toast.loading("Exporting workspace data...", { id: "export" });
+      const data = await exportAllBusinessData();
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `klyro-export-${new Date().toISOString().split("T")[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Data exported successfully", { id: "export" });
+    } catch {
+      toast.error("Export failed", { id: "export" });
+    }
+  };
+
+  const handleProcessRecurring = async () => {
+    try {
+      toast.loading("Processing recurring invoices...", { id: "recurring" });
+      const result = await processDueRecurringInvoices();
+      toast.success(`Processed ${result.count ?? 0} recurring invoice(s)`, { id: "recurring" });
+    } catch {
+      toast.error("Failed to process recurring invoices", { id: "recurring" });
+    }
   };
 
   return (
@@ -72,11 +110,12 @@ export function CommandPalette() {
             </kbd>
           </div>
 
-          <Command.List className="max-h-80 overflow-y-auto p-2 divide-y divide-slate-100 dark:divide-slate-800/40">
+          <Command.List className="max-h-[420px] overflow-y-auto p-2 divide-y divide-slate-100 dark:divide-slate-800/40">
             <Command.Empty className="py-8 text-center text-xs text-slate-400">
               No matching commands or pages found.
             </Command.Empty>
 
+            {/* Quick Actions */}
             <Command.Group heading="Quick Actions" className="p-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               <Command.Item
                 onSelect={() => runCommand(() => router.push("/dashboard/invoices/new"))}
@@ -84,6 +123,7 @@ export function CommandPalette() {
               >
                 <PlusCircle className="w-4 h-4 text-blue-500" />
                 <span>Create New Invoice</span>
+                <kbd className="ml-auto text-[10px] font-mono text-slate-300 dark:text-slate-600">⌘ I</kbd>
               </Command.Item>
               <Command.Item
                 onSelect={() => runCommand(() => router.push("/dashboard/customers?action=new"))}
@@ -99,74 +139,72 @@ export function CommandPalette() {
                 <Package className="w-4 h-4 text-amber-500" />
                 <span>Add New Product</span>
               </Command.Item>
+              <Command.Item
+                onSelect={() => runCommand(() => router.push("/dashboard/sales?action=new"))}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer select-none transition-colors"
+              >
+                <BadgeDollarSign className="w-4 h-4 text-purple-500" />
+                <span>Record New Sale</span>
+              </Command.Item>
             </Command.Group>
 
+            {/* Power Actions */}
+            <Command.Group heading="Power Actions" className="p-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <Command.Item
+                onSelect={() => runCommand(handleProcessRecurring)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 text-indigo-500" />
+                <span>Process Recurring Invoices</span>
+              </Command.Item>
+              <Command.Item
+                onSelect={() => runCommand(handleExportData)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none transition-colors"
+              >
+                <Download className="w-4 h-4 text-indigo-500" />
+                <span>Export All Workspace Data</span>
+              </Command.Item>
+              <Command.Item
+                onSelect={() => runCommand(() => router.push("/dashboard/customers?action=import"))}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none transition-colors"
+              >
+                <Upload className="w-4 h-4 text-indigo-500" />
+                <span>Import Customers from CSV</span>
+              </Command.Item>
+              <Command.Item
+                onSelect={() => runCommand(() => router.push("/dashboard#goals"))}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none transition-colors"
+              >
+                <Target className="w-4 h-4 text-indigo-500" />
+                <span>View Goal Tracker</span>
+              </Command.Item>
+            </Command.Group>
+
+            {/* Navigation */}
             <Command.Group heading="Navigation" className="p-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4 text-slate-500" />
-                <span>Overview Dashboard</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/customers"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <Users className="w-4 h-4 text-slate-500" />
-                <span>Customers CRM</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/inventory"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <Package className="w-4 h-4 text-slate-500" />
-                <span>Inventory & Products</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/sales"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <BadgeDollarSign className="w-4 h-4 text-slate-500" />
-                <span>Sales & Expenses</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/invoices"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <FileText className="w-4 h-4 text-slate-500" />
-                <span>Invoices</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/analytics"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <BarChart3 className="w-4 h-4 text-slate-500" />
-                <span>Analytics & Margins</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/staff"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <UserCheck className="w-4 h-4 text-slate-500" />
-                <span>Staff & Roles</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/activity"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <History className="w-4 h-4 text-slate-500" />
-                <span>Activity Logs</span>
-              </Command.Item>
-              <Command.Item
-                onSelect={() => runCommand(() => router.push("/dashboard/settings"))}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
-              >
-                <Settings className="w-4 h-4 text-slate-500" />
-                <span>Business Settings</span>
-              </Command.Item>
+              {[
+                { label: "Overview Dashboard", href: "/dashboard", icon: LayoutDashboard },
+                { label: "Customers CRM", href: "/dashboard/customers", icon: Users },
+                { label: "Inventory & Products", href: "/dashboard/inventory", icon: Package },
+                { label: "Sales & Expenses", href: "/dashboard/sales", icon: BadgeDollarSign },
+                { label: "Invoices", href: "/dashboard/invoices", icon: FileText },
+                { label: "Analytics & Margins", href: "/dashboard/analytics", icon: BarChart3 },
+                { label: "Staff & Roles", href: "/dashboard/staff", icon: UserCheck },
+                { label: "Activity Logs", href: "/dashboard/activity", icon: History },
+                { label: "Business Settings", href: "/dashboard/settings", icon: Settings },
+              ].map(({ label, href, icon: Icon }) => (
+                <Command.Item
+                  key={href}
+                  onSelect={() => runCommand(() => router.push(href))}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
+                >
+                  <Icon className="w-4 h-4 text-slate-500" />
+                  <span>{label}</span>
+                </Command.Item>
+              ))}
             </Command.Group>
 
+            {/* Preferences */}
             <Command.Group heading="Preferences" className="p-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
               <Command.Item
                 onSelect={() => runCommand(toggleDarkMode)}
@@ -183,6 +221,19 @@ export function CommandPalette() {
                     <span>Switch to Dark Mode</span>
                   </>
                 )}
+                <kbd className="ml-auto text-[10px] font-mono text-slate-300 dark:text-slate-600">⌘ D</kbd>
+              </Command.Item>
+              <Command.Item
+                onSelect={() => runCommand(() => {
+                  const next = themePreference === "system" ? "light" : themePreference === "light" ? "dark" : "system";
+                  setTheme(next);
+                  toast.success(`Theme set to ${next}`);
+                })}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
+              >
+                <RefreshCw className="w-4 h-4 text-slate-500" />
+                <span>Cycle Theme (Light → Dark → System)</span>
+                <span className="ml-auto text-[11px] text-slate-400 capitalize">{themePreference}</span>
               </Command.Item>
             </Command.Group>
           </Command.List>

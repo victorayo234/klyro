@@ -14,16 +14,12 @@ export async function getCustomers(): Promise<Customer[]> {
 
     if (error) {
       console.warn("Error fetching customers from Supabase:", error.message);
-      return getDemoCustomers();
+      return [];
     }
 
-    if (!data || data.length === 0) {
-      return getDemoCustomers();
-    }
-
-    return data as Customer[];
+    return (data || []) as Customer[];
   } catch {
-    return getDemoCustomers();
+    return [];
   }
 }
 
@@ -35,26 +31,27 @@ export async function createCustomer(formData: {
   notes?: string;
   tags?: string[];
   status?: "active" | "inactive" | "lead";
+  custom_fields?: Record<string, string>;
 }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let businessId = "00000000-0000-0000-0000-000000000001";
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("business_id")
-      .eq("id", user.id)
-      .single();
-    if (profile?.business_id) businessId = profile.business_id;
-  }
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.business_id) throw new Error("Business profile not found");
 
   const { data, error } = await supabase
     .from("customers")
     .insert({
-      business_id: businessId,
+      business_id: profile.business_id,
       name: formData.name,
       email: formData.email || null,
       phone: formData.phone || null,
@@ -62,6 +59,7 @@ export async function createCustomer(formData: {
       notes: formData.notes || null,
       tags: formData.tags || [],
       status: formData.status || "active",
+      custom_fields: formData.custom_fields || {},
       total_spend: 0,
     })
     .select()
@@ -115,77 +113,83 @@ export async function deleteCustomer(id: string) {
   });
 }
 
-function getDemoCustomers(): Customer[] {
-  return [
-    {
-      id: "cust-1",
-      business_id: "biz-demo",
-      name: "Apex Consulting LLC",
-      email: "billing@apexcorp.com",
-      phone: "+1 (555) 342-9182",
-      address: "100 Financial Way, New York, NY",
-      notes: "Enterprise retainer client. Net 30 terms.",
-      tags: ["Enterprise", "VIP", "Monthly Retainer"],
-      total_spend: 24500.0,
-      status: "active",
-      created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: "cust-2",
-      business_id: "biz-demo",
-      name: "BioLab Diagnostics",
-      email: "procurement@biolab.io",
-      phone: "+1 (555) 881-2309",
-      address: "42 Science Park, Cambridge, MA",
-      notes: "Regular purchaser of lab and office equipment.",
-      tags: ["Healthcare", "Net 15"],
-      total_spend: 14200.5,
-      status: "active",
-      created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: "cust-3",
-      business_id: "biz-demo",
-      name: "Solarium Studios",
-      email: "clara@solarium.design",
-      phone: "+1 (555) 712-4491",
-      address: "740 Market St, San Francisco, CA",
-      notes: "Design agency. Orders ergonomic seating.",
-      tags: ["Design", "Direct Deposit"],
-      total_spend: 6850.0,
-      status: "active",
-      created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: "cust-4",
-      business_id: "biz-demo",
-      name: "Vanguard Logistics",
-      email: "ops@vanguardfreight.com",
-      phone: "+1 (555) 902-1144",
-      address: "120 Harbor Blvd, Long Beach, CA",
-      notes: "Requested quote for warehouse inventory systems.",
-      tags: ["Lead", "High Priority"],
-      total_spend: 0.0,
-      status: "lead",
-      created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-    {
-      id: "cust-5",
-      business_id: "biz-demo",
-      name: "Kinetics Fitness Co",
-      email: "accounts@kineticsfit.com",
-      phone: "+1 (555) 412-8877",
-      address: "88 Broadway, Denver, CO",
-      notes: "Previous gym expansion client.",
-      tags: ["Retail"],
-      total_spend: 3400.0,
-      status: "inactive",
-      created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
+export async function bulkDeleteCustomers(ids: string[]) {
+  if (ids.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase.from("customers").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "customer",
+    action: `Bulk deleted ${ids.length} customers`,
+    details: { count: ids.length, ids },
+  });
+}
+
+export async function bulkUpdateCustomerStatus(ids: string[], status: "active" | "inactive" | "lead") {
+  if (ids.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("customers")
+    .update({ status, updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "customer",
+    action: `Bulk updated status to ${status} for ${ids.length} customers`,
+    details: { count: ids.length, status },
+  });
+}
+
+export async function batchImportCustomers(
+  records: Array<{
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    tags?: string[];
+    custom_fields?: Record<string, string>;
+  }>
+) {
+  if (records.length === 0) return { count: 0 };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.business_id) throw new Error("Business profile not found");
+
+  const rows = records.map((r) => ({
+    business_id: profile.business_id,
+    name: r.name,
+    email: r.email || null,
+    phone: r.phone || null,
+    address: r.address || null,
+    notes: r.notes || null,
+    tags: r.tags || [],
+    status: "active" as const,
+    total_spend: 0,
+    custom_fields: r.custom_fields || {},
+  }));
+
+  const { data, error } = await supabase.from("customers").insert(rows).select("id");
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "customer",
+    action: `Batch imported ${data.length} customers from CSV`,
+    details: { count: data.length },
+  });
+
+  return { count: data.length };
 }

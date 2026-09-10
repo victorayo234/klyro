@@ -29,7 +29,37 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${inter.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${outfit.variable} ${inter.variable} h-full antialiased`}
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem("klyro_theme");
+                  var isDark = false;
+                  if (stored === "dark") {
+                    isDark = true;
+                  } else if (stored === "light") {
+                    isDark = false;
+                  } else {
+                    isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+                  }
+                  if (isDark) {
+                    document.documentElement.classList.add("dark");
+                  } else {
+                    document.documentElement.classList.remove("dark");
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col font-sans bg-[var(--background)] text-[var(--foreground)] selection:bg-blue-600 selection:text-white">
         {children}
         <Toaster

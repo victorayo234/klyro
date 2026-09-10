@@ -28,10 +28,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoBox: {
-    width: 28,
-    height: 28,
-    backgroundColor: "#1e3a8a",
-    borderRadius: 4,
+    width: 26,
+    height: 26,
+    backgroundColor: "#4338ca",
+    borderRadius: 6,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
@@ -39,12 +39,13 @@ const styles = StyleSheet.create({
   logoLetter: {
     color: "#ffffff",
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 13,
   },
   brandName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "bold",
     color: "#0f172a",
+    letterSpacing: -0.3,
   },
   invoiceMeta: {
     alignItems: "flex-end",
@@ -52,7 +53,7 @@ const styles = StyleSheet.create({
   invoiceTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#1e3a8a",
+    color: "#4338ca",
     marginBottom: 4,
   },
   metaRow: {

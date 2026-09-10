@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { Invoice } from "@/types/database";
+import { Invoice, InvoiceStatus, RecurrenceInterval } from "@/types/database";
 import { logActivity } from "./activity";
 
 export async function getInvoices(): Promise<Invoice[]> {
@@ -12,13 +12,14 @@ export async function getInvoices(): Promise<Invoice[]> {
       .select("*, customer:customers(*), items:invoice_items(*)")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return getDemoInvoices();
+    if (error) {
+      console.warn("Error fetching invoices from Supabase:", error.message);
+      return [];
     }
 
-    return data as Invoice[];
+    return (data || []) as Invoice[];
   } catch {
-    return getDemoInvoices();
+    return [];
   }
 }
 
@@ -29,6 +30,9 @@ export async function createInvoice(payload: {
   discountAmount: number;
   notes?: string;
   terms?: string;
+  isRecurring?: boolean;
+  recurrenceInterval?: RecurrenceInterval;
+  autoSend?: boolean;
   items: Array<{
     productId?: string;
     description: string;
@@ -41,15 +45,15 @@ export async function createInvoice(payload: {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let businessId = "00000000-0000-0000-0000-000000000001";
-  if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("business_id")
-      .eq("id", user.id)
-      .single();
-    if (profile?.business_id) businessId = profile.business_id;
-  }
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("business_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.business_id) throw new Error("Business profile not found");
 
   // Server-side strict mathematical validation
   const calculatedSubtotal = payload.items.reduce(
@@ -63,10 +67,22 @@ export async function createInvoice(payload: {
 
   const invoiceNumber = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+  // Compute next_issue_date if recurring
+  let nextIssueDate: string | null = null;
+  if (payload.isRecurring) {
+    const nextDate = new Date();
+    const interval = payload.recurrenceInterval || "monthly";
+    if (interval === "weekly") nextDate.setDate(nextDate.getDate() + 7);
+    else if (interval === "monthly") nextDate.setMonth(nextDate.getMonth() + 1);
+    else if (interval === "quarterly") nextDate.setMonth(nextDate.getMonth() + 3);
+    else if (interval === "yearly") nextDate.setFullYear(nextDate.getFullYear() + 1);
+    nextIssueDate = nextDate.toISOString().split("T")[0];
+  }
+
   const { data: invoice, error: invError } = await supabase
     .from("invoices")
     .insert({
-      business_id: businessId,
+      business_id: profile.business_id,
       customer_id: payload.customerId,
       invoice_number: invoiceNumber,
       issue_date: new Date().toISOString().split("T")[0],
@@ -79,6 +95,10 @@ export async function createInvoice(payload: {
       status: "sent",
       notes: payload.notes || "Payment is requested within invoice due date.",
       terms: payload.terms || "Standard Net 30 days. Late fees of 1.5% per month apply.",
+      is_recurring: payload.isRecurring || false,
+      recurrence_interval: payload.recurrenceInterval || null,
+      next_issue_date: nextIssueDate,
+      auto_send: payload.autoSend || false,
     })
     .select()
     .single();
@@ -100,7 +120,7 @@ export async function createInvoice(payload: {
   await logActivity({
     entityType: "invoice",
     entityId: invoice.id,
-    action: `Created invoice ${invoiceNumber} for $${totalAmount.toFixed(2)}`,
+    action: `Created invoice ${invoiceNumber} for $${totalAmount.toFixed(2)}${payload.isRecurring ? " (Recurring)" : ""}`,
     details: { invoiceNumber, totalAmount, customerId: payload.customerId },
   });
 
@@ -127,154 +147,63 @@ export async function markInvoicePaid(invoiceId: string) {
   return data;
 }
 
-function getDemoInvoices(): Invoice[] {
-  return [
-    {
-      id: "inv-1",
-      business_id: "biz-demo",
-      customer_id: "cust-1",
-      invoice_number: "INV-2026-089",
-      issue_date: "2026-03-01",
-      due_date: "2026-03-31",
-      subtotal: 3160.0,
-      tax_rate: 8.25,
-      tax_amount: 260.7,
-      discount_amount: 0.0,
-      total_amount: 3420.7,
-      status: "paid",
-      notes: "Corporate workspace overhaul phase 1.",
-      terms: "Net 30. Thank you for your continued business.",
-      created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-      customer: {
-        id: "cust-1",
-        business_id: "biz-demo",
-        name: "Apex Consulting LLC",
-        email: "billing@apexcorp.com",
-        phone: "+1 (555) 342-9182",
-        address: "100 Financial Way, New York, NY",
-        notes: null,
-        tags: ["VIP"],
-        total_spend: 24500,
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      items: [
-        {
-          id: "item-1",
-          invoice_id: "inv-1",
-          product_id: "prod-1",
-          description: "Ergonomic Task Chair Alpha (Black Edition)",
-          quantity: 8,
-          unit_price: 289.0,
-          total_price: 2312.0,
-        },
-        {
-          id: "item-2",
-          invoice_id: "inv-1",
-          product_id: "prod-3",
-          description: "USB-C Dual 4K Docking Station 100W",
-          quantity: 4,
-          unit_price: 149.0,
-          total_price: 596.0,
-        },
-        {
-          id: "item-3",
-          invoice_id: "inv-1",
-          product_id: "prod-5",
-          description: "Acoustic Fabric Privacy Screen",
-          quantity: 2,
-          unit_price: 95.0,
-          total_price: 190.0,
-        },
-      ],
-    },
-    {
-      id: "inv-2",
-      business_id: "biz-demo",
-      customer_id: "cust-2",
-      invoice_number: "INV-2026-090",
-      issue_date: "2026-03-05",
-      due_date: "2026-03-20",
-      subtotal: 1098.0,
-      tax_rate: 8.25,
-      tax_amount: 90.59,
-      discount_amount: 50.0,
-      total_amount: 1138.59,
-      status: "sent",
-      notes: "Motorized standing desks delivery.",
-      terms: "Net 15 days.",
-      created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-      customer: {
-        id: "cust-2",
-        business_id: "biz-demo",
-        name: "BioLab Diagnostics",
-        email: "procurement@biolab.io",
-        phone: "+1 (555) 881-2309",
-        address: "42 Science Park, Cambridge, MA",
-        notes: null,
-        tags: ["Healthcare"],
-        total_spend: 14200,
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      items: [
-        {
-          id: "item-4",
-          invoice_id: "inv-2",
-          product_id: "prod-2",
-          description: "Smart Motorized Standing Desk (60x30)",
-          quantity: 2,
-          unit_price: 549.0,
-          total_price: 1098.0,
-        },
-      ],
-    },
-    {
-      id: "inv-3",
-      business_id: "biz-demo",
-      customer_id: "cust-5",
-      invoice_number: "INV-2026-077",
-      issue_date: "2026-01-15",
-      due_date: "2026-02-15",
-      subtotal: 890.0,
-      tax_rate: 8.25,
-      tax_amount: 73.43,
-      discount_amount: 0.0,
-      total_amount: 963.43,
-      status: "overdue",
-      notes: "Reminder dispatched 3 days ago.",
-      terms: "Net 30 days.",
-      created_at: new Date(Date.now() - 50 * 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-      customer: {
-        id: "cust-5",
-        business_id: "biz-demo",
-        name: "Kinetics Fitness Co",
-        email: "accounts@kineticsfit.com",
-        phone: "+1 (555) 412-8877",
-        address: "88 Broadway, Denver, CO",
-        notes: null,
-        tags: ["Retail"],
-        total_spend: 3400,
-        status: "inactive",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      items: [
-        {
-          id: "item-5",
-          invoice_id: "inv-3",
-          product_id: null,
-          description: "Gym reception desk custom installation",
-          quantity: 1,
-          unit_price: 890.0,
-          total_price: 890.0,
-        },
-      ],
-    },
-  ];
+export async function updateInvoiceStatus(invoiceId: string, status: InvoiceStatus) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("invoices")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", invoiceId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "invoice",
+    entityId: invoiceId,
+    action: `Updated invoice status to ${status.toUpperCase()}`,
+  });
+
+  return data;
+}
+
+export async function deleteInvoice(invoiceId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "invoice",
+    entityId: invoiceId,
+    action: `Deleted invoice`,
+  });
+}
+
+export async function bulkDeleteInvoices(ids: string[]) {
+  if (ids.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase.from("invoices").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "invoice",
+    action: `Bulk deleted ${ids.length} invoices`,
+    details: { count: ids.length },
+  });
+}
+
+export async function bulkUpdateInvoiceStatus(ids: string[], status: InvoiceStatus) {
+  if (ids.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("invoices")
+    .update({ status, updated_at: new Date().toISOString() })
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+
+  await logActivity({
+    entityType: "invoice",
+    action: `Bulk updated status to ${status} for ${ids.length} invoices`,
+    details: { count: ids.length, status },
+  });
 }

@@ -19,6 +19,7 @@ import {
   Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { KlyroLogo } from "@/components/ui/logo";
 
 export default function LandingPage() {
   const [activeTab, setActiveTab] = React.useState<"crm" | "inventory" | "invoices" | "analytics">("crm");
@@ -30,12 +31,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-40 border-b border-slate-100 dark:border-slate-800/80 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-display font-bold shadow-xs">
-                K
-              </div>
-              <span className="font-display font-bold text-lg tracking-tight">Klyro</span>
-            </Link>
+            <KlyroLogo size="sm" href="/" />
 
             <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-slate-600 dark:text-slate-400">
               <a href="#features" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -112,9 +108,9 @@ export default function LandingPage() {
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            <Link href="/dashboard">
+            <Link href="/login">
               <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                Explore Live Demo
+                Sign In
               </Button>
             </Link>
           </motion.div>
@@ -602,12 +598,9 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="py-12 border-t border-slate-100 dark:border-slate-800/80 px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center text-white font-display font-bold text-xs">
-              K
-            </div>
-            <span className="font-display font-bold text-sm tracking-tight">Klyro Inc.</span>
-            <span className="text-xs text-slate-400">© 2026. All rights reserved.</span>
+          <div className="flex items-center gap-3">
+            <KlyroLogo size="xs" href="/" />
+            <span className="text-xs text-slate-400">© 2026 Klyro Inc. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-slate-500 dark:text-slate-400">
             <Link href="/login" className="hover:text-blue-600">Login</Link>

@@ -9,24 +9,29 @@ import {
   Plus,
   Download,
   AlertTriangle,
-  ArrowUpDown,
   Filter,
   Trash2,
-  Edit2,
   RefreshCw,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Product } from "@/types/database";
+import { BulkActionsBar } from "@/components/dashboard/bulk-actions-bar";
+import { CSVImportWizard } from "@/components/dashboard/csv-import-wizard";
+import { SavedFilters } from "@/components/dashboard/saved-filters";
+import { Product, SavedFilter } from "@/types/database";
 import {
   getProducts,
   createProduct,
-  adjustStock,
   deleteProduct,
+  bulkDeleteProducts,
+  bulkRestockProducts,
 } from "@/lib/actions/products";
+import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 
 export default function InventoryPage() {
@@ -36,23 +41,27 @@ export default function InventoryPage() {
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [isLoading, setIsLoading] = React.useState(true);
 
-  // Add/Edit Product Modal
+  // Multi-select
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [activeSavedFilterId, setActiveSavedFilterId] = React.useState<string | null>(null);
+
+  // Add Product Modal
   const [isProductModalOpen, setIsProductModalOpen] = React.useState(false);
   const [formName, setFormName] = React.useState("");
   const [formSku, setFormSku] = React.useState("");
-  const [formCategory, setFormCategory] = React.useState("Office Furniture");
-  const [formCostPrice, setFormCostPrice] = React.useState<number>(100);
-  const [formSalePrice, setFormSalePrice] = React.useState<number>(199);
+  const [formCategory, setFormCategory] = React.useState("General Supplies");
+  const [formCostPrice, setFormCostPrice] = React.useState<number>(50);
+  const [formSalePrice, setFormSalePrice] = React.useState<number>(99);
   const [formQuantity, setFormQuantity] = React.useState<number>(10);
   const [formThreshold, setFormThreshold] = React.useState<number>(5);
   const [formDescription, setFormDescription] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Quick Stock Adjustment Modal
+  // Stock Adjustment Modal
   const [isStockModalOpen, setIsStockModalOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
   const [adjustmentQty, setAdjustmentQty] = React.useState<number>(0);
-  const [adjustmentReason, setAdjustmentReason] = React.useState("Received shipment");
+  const [adjustmentReason, setAdjustmentReason] = React.useState("Inventory recount / audit");
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
@@ -70,10 +79,21 @@ export default function InventoryPage() {
     loadData();
   }, [loadData]);
 
+  // Handle ?action=new from command palette
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("action") === "new") {
+        openCreateModal();
+        window.history.replaceState({}, "", "/dashboard/inventory");
+      }
+    }
+  }, []);
+
   const openCreateModal = () => {
     setFormName("");
     setFormSku(`SKU-${Math.floor(100 + Math.random() * 900)}`);
-    setFormCategory("Office Furniture");
+    setFormCategory("General Supplies");
     setFormCostPrice(50);
     setFormSalePrice(99);
     setFormQuantity(15);
@@ -118,7 +138,13 @@ export default function InventoryPage() {
     e.preventDefault();
     if (!selectedProduct) return;
     try {
-      await adjustStock(selectedProduct.id, adjustmentQty, adjustmentReason);
+      // Direct Supabase update for stock adjustment
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("products")
+        .update({ quantity: adjustmentQty })
+        .eq("id", selectedProduct.id);
+      if (error) throw error;
       toast.success(`Updated stock for ${selectedProduct.name}`);
       setIsStockModalOpen(false);
       loadData();
@@ -138,7 +164,56 @@ export default function InventoryPage() {
     }
   };
 
-  // CSV Export via PapaParse
+  // Bulk actions
+  const handleBulkDelete = async () => {
+    await bulkDeleteProducts(Array.from(selectedIds));
+    toast.success(`${selectedIds.size} products deleted`);
+    setSelectedIds(new Set());
+    loadData();
+  };
+
+  const handleBulkRestock = async (status: string) => {
+    // status value contains the restock quantity
+    const qty = Number(status);
+    if (!qty || qty <= 0) return;
+    await bulkRestockProducts(Array.from(selectedIds).map((id) => ({ id, addQuantity: qty })));
+    toast.success(`Restocked ${selectedIds.size} products by +${qty} units`);
+    setSelectedIds(new Set());
+    loadData();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProducts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredProducts.map((p) => p.id)));
+    }
+  };
+
+  const handleSavedFilterSelect = (filter: SavedFilter | null) => {
+    if (!filter) {
+      setActiveSavedFilterId(null);
+      setCategoryFilter("all");
+      setFilterView("all");
+      setSearchQuery("");
+      return;
+    }
+    setActiveSavedFilterId(filter.id);
+    const cfg = filter.filter_criteria as Record<string, unknown>;
+    if (cfg.category) setCategoryFilter(cfg.category as string);
+    if (cfg.view) setFilterView(cfg.view as "all" | "low_stock");
+    if (cfg.search) setSearchQuery(cfg.search as string);
+  };
+
+  // CSV Export
   const handleExportCSV = () => {
     if (products.length === 0) {
       toast.error("No inventory data to export.");
@@ -171,37 +246,44 @@ export default function InventoryPage() {
   };
 
   const lowStockCount = products.filter((p) => p.quantity <= p.reorder_threshold).length;
-
   const categories = Array.from(new Set(products.map((p) => p.category)));
 
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-
     const matchesLowStock = filterView === "low_stock" ? p.quantity <= p.reorder_threshold : true;
     const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
-
     return matchesSearch && matchesLowStock && matchesCategory;
   });
 
+  const allSelected = filteredProducts.length > 0 && selectedIds.size === filteredProducts.length;
+  const someSelected = selectedIds.size > 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-display text-slate-900 dark:text-slate-100">
-            Inventory & Products
+            Inventory &amp; Products
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Real-time stock depletion tracking, SKU catalog, and low-threshold alerts
+            Real-time stock tracking, SKU catalog, and low-threshold alerts
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <CSVImportWizard
+            type="products"
+            onSuccess={() => {
+              toast.success("Products imported successfully");
+              loadData();
+            }}
+          />
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />
-            Export CSV
+            Export
           </Button>
           <Button size="sm" onClick={openCreateModal} className="gap-1.5 shadow-xs">
             <Plus className="w-3.5 h-3.5" />
@@ -209,6 +291,32 @@ export default function InventoryPage() {
           </Button>
         </div>
       </div>
+
+      {/* Saved Filters */}
+      <SavedFilters
+        tableName="inventory"
+        currentFilter={{ category: categoryFilter, view: filterView, search: searchQuery }}
+        activeSavedFilterId={activeSavedFilterId}
+        onSelectSavedFilter={handleSavedFilterSelect}
+      />
+
+      {/* Bulk Actions Bar */}
+      {someSelected && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          totalCount={filteredProducts.length}
+          entityName="products"
+          onClearSelection={() => setSelectedIds(new Set())}
+          onDeleteSelected={handleBulkDelete}
+          onStatusChangeSelected={handleBulkRestock}
+          statusOptions={[
+            { label: "Restock to 10", value: "10" },
+            { label: "Restock to 25", value: "25" },
+            { label: "Restock to 50", value: "50" },
+            { label: "Restock to 100", value: "100" },
+          ]}
+        />
+      )}
 
       {/* Filter Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -224,7 +332,6 @@ export default function InventoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Low Stock Filter Pill */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs font-medium">
             <button
               onClick={() => setFilterView("all")}
@@ -249,7 +356,6 @@ export default function InventoryPage() {
             </button>
           </div>
 
-          {/* Category Dropdown */}
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
@@ -280,14 +386,27 @@ export default function InventoryPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 font-medium">
                 <tr>
-                  <th className="px-6 py-3.5">Product Name & Details</th>
-                  <th className="px-6 py-3.5">SKU</th>
-                  <th className="px-6 py-3.5">Category</th>
-                  <th className="px-6 py-3.5">Stock Level</th>
-                  <th className="px-6 py-3.5">Sale Price</th>
-                  <th className="px-6 py-3.5">Margin</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="px-4 py-3.5 w-10">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-slate-400 hover:text-blue-600 transition-colors"
+                      title={allSelected ? "Deselect all" : "Select all"}
+                    >
+                      {allSelected ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-3.5">Product Name &amp; Details</th>
+                  <th className="px-4 py-3.5">SKU</th>
+                  <th className="px-4 py-3.5">Category</th>
+                  <th className="px-4 py-3.5">Stock Level</th>
+                  <th className="px-4 py-3.5">Sale Price</th>
+                  <th className="px-4 py-3.5">Margin</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -301,9 +420,23 @@ export default function InventoryPage() {
                   return (
                     <tr
                       key={prod.id}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+                      className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${
+                        selectedIds.has(prod.id) ? "bg-blue-50/40 dark:bg-blue-950/20" : ""
+                      }`}
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
+                        <button
+                          onClick={() => toggleSelect(prod.id)}
+                          className="text-slate-400 hover:text-blue-600 transition-colors"
+                        >
+                          {selectedIds.has(prod.id) ? (
+                            <CheckSquare className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4">
                         <span className="font-semibold text-slate-900 dark:text-slate-100 block">
                           {prod.name}
                         </span>
@@ -313,13 +446,13 @@ export default function InventoryPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 font-mono text-slate-500">{prod.sku}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 font-mono text-slate-500">{prod.sku}</td>
+                      <td className="px-4 py-4">
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[11px]">
                           {prod.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <span
                             className={`font-bold font-mono text-sm ${
@@ -333,13 +466,13 @@ export default function InventoryPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                      <td className="px-4 py-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
                         {formatCurrency(prod.sale_price)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         <span className="text-emerald-600 font-semibold">{marginPercent}%</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4">
                         {isLow ? (
                           <Badge variant="warning" className="gap-1">
                             <AlertTriangle className="w-3 h-3" /> Low Stock
@@ -348,7 +481,7 @@ export default function InventoryPage() {
                           <Badge variant="success">In Stock</Badge>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openStockModal(prod)}
@@ -403,17 +536,13 @@ export default function InventoryPage() {
               <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
                 Category
               </label>
-              <select
+              <input
+                type="text"
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value)}
+                placeholder="e.g. Electronics"
                 className="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
-              >
-                <option value="Office Furniture">Office Furniture</option>
-                <option value="Hardware & Tech">Hardware & Tech</option>
-                <option value="Acoustics & Partition">Acoustics & Partition</option>
-                <option value="Lighting & Power">Lighting & Power</option>
-                <option value="General Supplies">General Supplies</option>
-              </select>
+              />
             </div>
           </div>
 

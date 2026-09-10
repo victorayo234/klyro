@@ -8,15 +8,13 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  FileText,
-  DollarSign,
-  Calculator,
   Save,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Customer, Product } from "@/types/database";
+import { Customer, Product, RecurrenceInterval } from "@/types/database";
 import { getCustomers } from "@/lib/actions/customers";
 import { getProducts } from "@/lib/actions/products";
 import { createInvoice } from "@/lib/actions/invoices";
@@ -47,6 +45,11 @@ export default function NewInvoicePage() {
   const [items, setItems] = React.useState<LineItemRow[]>([
     { description: "", quantity: 1, unitPrice: 0 },
   ]);
+
+  // Recurring invoice controls
+  const [isRecurring, setIsRecurring] = React.useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = React.useState<RecurrenceInterval>("monthly");
+  const [autoSend, setAutoSend] = React.useState(false);
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -129,6 +132,9 @@ export default function NewInvoicePage() {
         notes,
         terms,
         items,
+        isRecurring,
+        recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
+        autoSend: isRecurring ? autoSend : undefined,
       });
 
       toast.success("Invoice created successfully!", {
@@ -197,6 +203,61 @@ export default function NewInvoicePage() {
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
               />
+            </div>
+
+            {/* Recurring Invoice Controls */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+              <label className="flex items-center gap-2.5 cursor-pointer group">
+                <div
+                  className={`w-9 h-5 rounded-full transition-colors flex items-center relative ${
+                    isRecurring ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"
+                  }`}
+                  onClick={() => setIsRecurring((v) => !v)}
+                >
+                  <div
+                    className={`absolute w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${
+                      isRecurring ? "translate-x-[18px]" : "translate-x-[3px]"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <RefreshCw className="w-3 h-3 text-blue-500" />
+                    Make this a Recurring Invoice
+                  </p>
+                  <p className="text-[11px] text-slate-400">Auto-generate on a schedule</p>
+                </div>
+              </label>
+
+              {isRecurring && (
+                <div className="grid grid-cols-2 gap-3 pl-1 pt-1 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Recurrence Interval</label>
+                    <select
+                      value={recurrenceInterval}
+                      onChange={(e) => setRecurrenceInterval(e.target.value as RecurrenceInterval)}
+                      className="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                    >
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer mt-5">
+                    <input
+                      type="checkbox"
+                      checked={autoSend}
+                      onChange={(e) => setAutoSend(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Auto-send to client</p>
+                      <p className="text-[11px] text-slate-400">Send via email automatically</p>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

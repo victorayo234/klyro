@@ -4,6 +4,12 @@ export type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'other';
 export type SaleStatus = 'completed' | 'refunded' | 'pending';
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
 export type NotificationType = 'stock_alert' | 'invoice_overdue' | 'new_sale' | 'team' | 'system';
+export type RecurrenceInterval = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+export interface CustomFieldsConfig {
+  customer_fields: string[];
+  product_fields: string[];
+}
 
 export interface Business {
   id: string;
@@ -12,6 +18,12 @@ export interface Business {
   currency: string;
   timezone: string;
   logo_url: string | null;
+  team_size_bracket?: string;
+  primary_goal?: string;
+  onboarding_completed?: boolean;
+  monthly_revenue_target?: number;
+  monthly_profit_target?: number;
+  custom_fields_config?: CustomFieldsConfig;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +35,8 @@ export interface Profile {
   email: string;
   role: Role;
   avatar_url: string | null;
+  theme_preference?: 'light' | 'dark' | 'system';
+  dashboard_layout?: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +52,7 @@ export interface Customer {
   tags: string[];
   total_spend: number;
   status: CustomerStatus;
+  custom_fields?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -54,6 +69,7 @@ export interface Product {
   reorder_threshold: number;
   description: string | null;
   image_url: string | null;
+  custom_fields?: Record<string, string>;
   created_at: string;
   updated_at: string;
 }
@@ -122,6 +138,10 @@ export interface Invoice {
   discount_amount: number;
   total_amount: number;
   status: InvoiceStatus;
+  is_recurring?: boolean;
+  recurrence_interval?: RecurrenceInterval | null;
+  next_issue_date?: string | null;
+  auto_send?: boolean;
   notes: string | null;
   terms: string | null;
   created_at: string;
@@ -151,5 +171,15 @@ export interface Notification {
   type: NotificationType;
   is_read: boolean;
   link: string | null;
+  created_at: string;
+}
+
+export interface SavedFilter {
+  id: string;
+  business_id: string;
+  user_id: string | null;
+  table_name: 'customers' | 'inventory' | 'invoices' | 'sales';
+  name: string;
+  filter_criteria: Record<string, unknown>;
   created_at: string;
 }

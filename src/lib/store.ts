@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type ThemePreference = "light" | "dark" | "system";
+
 interface AppState {
   // Sidebar state
   isSidebarCollapsed: boolean;
@@ -17,15 +19,26 @@ interface AppState {
   closeCommandPalette: () => void;
   toggleCommandPalette: () => void;
 
-  // Dark mode state
+  // Theme state
+  themePreference: ThemePreference;
   isDarkMode: boolean;
+  setTheme: (theme: ThemePreference) => void;
   toggleDarkMode: () => void;
-  setDarkMode: (dark: boolean) => void;
+}
+
+function applyThemeToDocument(isDark: boolean) {
+  if (typeof document !== "undefined") {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }
 }
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isSidebarCollapsed: false,
       toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       setSidebarCollapsed: (collapsed) => set({ isSidebarCollapsed: collapsed }),
@@ -39,34 +52,44 @@ export const useAppStore = create<AppState>()(
       toggleCommandPalette: () =>
         set((state) => ({ isCommandPaletteOpen: !state.isCommandPaletteOpen })),
 
+      themePreference: "system",
       isDarkMode: false,
-      toggleDarkMode: () =>
-        set((state) => {
-          const next = !state.isDarkMode;
-          if (typeof document !== "undefined") {
-            if (next) {
-              document.documentElement.classList.add("dark");
-            } else {
-              document.documentElement.classList.remove("dark");
-            }
-          }
-          return { isDarkMode: next };
-        }),
-      setDarkMode: (dark) => {
-        if (typeof document !== "undefined") {
-          if (dark) {
-            document.documentElement.classList.add("dark");
-          } else {
-            document.documentElement.classList.remove("dark");
-          }
+
+      setTheme: (pref: ThemePreference) => {
+        let isDark = false;
+        if (pref === "dark") {
+          isDark = true;
+        } else if (pref === "light") {
+          isDark = false;
+        } else {
+          // system
+          isDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
         }
-        set({ isDarkMode: dark });
+
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("klyro_theme", pref);
+        }
+        applyThemeToDocument(isDark);
+        set({ themePreference: pref, isDarkMode: isDark });
+      },
+
+      toggleDarkMode: () => {
+        const currentIsDark = get().isDarkMode;
+        const nextIsDark = !currentIsDark;
+        const nextPref = nextIsDark ? "dark" : "light";
+
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("klyro_theme", nextPref);
+        }
+        applyThemeToDocument(nextIsDark);
+        set({ themePreference: nextPref, isDarkMode: nextIsDark });
       },
     }),
     {
       name: "klyro-storage",
       partialize: (state) => ({
         isSidebarCollapsed: state.isSidebarCollapsed,
+        themePreference: state.themePreference,
         isDarkMode: state.isDarkMode,
       }),
     }

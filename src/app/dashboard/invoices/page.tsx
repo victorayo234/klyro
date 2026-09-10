@@ -15,14 +15,24 @@ import {
   Eye,
   Calendar,
   DollarSign,
+  RefreshCw,
+  Repeat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DownloadInvoicePDFButton } from "@/components/invoices/pdf-document";
-import { Invoice } from "@/types/database";
-import { getInvoices, markInvoicePaid } from "@/lib/actions/invoices";
+import { SavedFilters } from "@/components/dashboard/saved-filters";
+import { BulkActionsBar } from "@/components/dashboard/bulk-actions-bar";
+import { Invoice, SavedFilter, InvoiceStatus } from "@/types/database";
+import {
+  getInvoices,
+  markInvoicePaid,
+  bulkDeleteInvoices,
+  bulkUpdateInvoiceStatus,
+} from "@/lib/actions/invoices";
+import { processDueRecurringInvoices } from "@/lib/actions/recurring-invoices";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export default function InvoicesPage() {
@@ -30,6 +40,13 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [isLoading, setIsLoading] = React.useState(true);
+  const [isRunningRecurring, setIsRunningRecurring] = React.useState(false);
+
+  // Saved Filters state
+  const [activeSavedFilter, setActiveSavedFilter] = React.useState<SavedFilter | null>(null);
+
+  // Multi-select bulk state
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
   // Invoice Preview Modal
   const [previewInvoice, setPreviewInvoice] = React.useState<Invoice | null>(null);
@@ -50,6 +67,23 @@ export default function InvoicesPage() {
     loadData();
   }, [loadData]);
 
+  const handleRunRecurring = async () => {
+    setIsRunningRecurring(true);
+    try {
+      const res = await processDueRecurringInvoices();
+      if (res.success) {
+        toast.success(res.message || "Processed recurring invoices");
+        loadData();
+      } else {
+        toast.error(res.error || "Failed to process recurring invoices");
+      }
+    } catch {
+      toast.error("Error executing recurring batch");
+    } finally {
+      setIsRunningRecurring(false);
+    }
+  };
+
   const handleMarkPaid = async (invId: string) => {
     try {
       await markInvoicePaid(invId);
@@ -63,17 +97,13 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleSendReminder = (inv: Invoice) => {
-    toast.success(`Payment reminder dispatched to ${inv.customer?.name || "Client"}`);
-  };
-
-  const handleExportCSV = () => {
-    if (invoices.length === 0) {
+  const handleExportCSV = (recordsToExport = invoices) => {
+    if (recordsToExport.length === 0) {
       toast.error("No invoices to export");
       return;
     }
 
-    const csvData = invoices.map((inv) => ({
+    const csvData = recordsToExport.map((inv) => ({
       InvoiceNumber: inv.invoice_number,
       Customer: inv.customer?.name || "N/A",
       IssueDate: inv.issue_date,
@@ -82,6 +112,7 @@ export default function InvoicesPage() {
       TaxAmount: inv.tax_amount,
       TotalAmount: inv.total_amount,
       Status: inv.status,
+      Recurring: inv.is_recurring ? inv.recurrence_interval : "No",
     }));
 
     const csv = Papa.unparse(csvData);
@@ -96,14 +127,53 @@ export default function InvoicesPage() {
     toast.success("Invoices exported to CSV");
   };
 
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch =
-      inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inv.customer?.name.toLowerCase().includes(searchQuery.toLowerCase());
+  // Bulk Operations
+  const handleBulkDelete = async () => {
+    await bulkDeleteInvoices(selectedIds);
+    setInvoices((prev) => prev.filter((i) => !selectedIds.includes(i.id)));
+    setSelectedIds([]);
+    toast.success("Selected invoices removed");
+  };
 
-    const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const handleBulkStatusChange = async (newStatus: string) => {
+    await bulkUpdateInvoiceStatus(selectedIds, newStatus as InvoiceStatus);
+    setInvoices((prev) =>
+      prev.map((i) => (selectedIds.includes(i.id) ? { ...i, status: newStatus as InvoiceStatus } : i))
+    );
+    setSelectedIds([]);
+    toast.success(`Updated ${selectedIds.length} invoices to ${newStatus.toUpperCase()}`);
+  };
+
+  // Select all toggle
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === filteredInvoices.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredInvoices.map((i) => i.id));
+    }
+  };
+
+  const handleToggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Filter logic
+  const filteredInvoices = React.useMemo(() => {
+    return invoices.filter((inv) => {
+      const matchesSearch =
+        inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv.customer?.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const activeStatus = activeSavedFilter?.filter_criteria?.statusFilter
+        ? String(activeSavedFilter.filter_criteria.statusFilter)
+        : statusFilter;
+
+      const matchesStatus = activeStatus === "all" || inv.status === activeStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [invoices, searchQuery, statusFilter, activeSavedFilter]);
 
   return (
     <div className="space-y-6">
@@ -114,15 +184,33 @@ export default function InvoicesPage() {
             Invoices & Billing
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Create professional branded bills, track receivables, and download PDF documents
+            Create professional branded bills, track recurring retainers, and download PDF documents
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRunRecurring}
+            isLoading={isRunningRecurring}
+            className="gap-1.5 shadow-xs text-xs"
+            title="Check and generate any recurring invoices due today"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
+            Process Recurring
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleExportCSV()}
+            className="gap-1.5"
+          >
             <Download className="w-3.5 h-3.5" />
             Export CSV
           </Button>
+
           <Link href="/dashboard/invoices/new">
             <Button size="sm" className="gap-1.5 shadow-xs">
               <Plus className="w-3.5 h-3.5" />
@@ -131,6 +219,19 @@ export default function InvoicesPage() {
           </Link>
         </div>
       </div>
+
+      {/* Saved Views Pills */}
+      <SavedFilters
+        tableName="invoices"
+        currentFilter={{ statusFilter, searchQuery }}
+        activeSavedFilterId={activeSavedFilter?.id || null}
+        onSelectSavedFilter={(sf) => {
+          setActiveSavedFilter(sf);
+          if (sf?.filter_criteria?.statusFilter) {
+            setStatusFilter(String(sf.filter_criteria.statusFilter));
+          }
+        }}
+      />
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -141,7 +242,7 @@ export default function InvoicesPage() {
             placeholder="Search by invoice number or client name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
         </div>
 
@@ -149,10 +250,13 @@ export default function InvoicesPage() {
           {["all", "draft", "sent", "paid", "overdue"].map((status) => (
             <button
               key={status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setStatusFilter(status);
+                setActiveSavedFilter(null);
+              }}
               className={`px-2.5 py-1 rounded-md capitalize transition-all ${
-                statusFilter === status
-                  ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
+                statusFilter === status && !activeSavedFilter
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                   : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
@@ -163,236 +267,194 @@ export default function InvoicesPage() {
       </div>
 
       {/* Invoices Table */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
-        {filteredInvoices.length === 0 ? (
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+        {isLoading ? (
+          <div className="p-8 text-center text-xs text-slate-500">Loading invoices...</div>
+        ) : filteredInvoices.length === 0 ? (
           <EmptyState
             type="invoices"
             title="No invoices found"
-            description="Generate a new invoice to bill clients with automated tax calculations and downloadable PDFs."
+            description="Create your first client invoice or modify filter criteria."
             actionLabel="Create Invoice"
-            onAction={() => (window.location.href = "/dashboard/invoices/new")}
+            onAction={() => window.location.href = "/dashboard/invoices/new"}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 font-medium">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="px-6 py-3.5">Invoice #</th>
-                  <th className="px-6 py-3.5">Customer</th>
-                  <th className="px-6 py-3.5">Issue Date</th>
-                  <th className="px-6 py-3.5">Due Date</th>
-                  <th className="px-6 py-3.5">Total Due</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredInvoices.length > 0 &&
+                        selectedIds.length === filteredInvoices.length
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </th>
+                  <th className="p-3.5 font-semibold">Invoice #</th>
+                  <th className="p-3.5 font-semibold">Client / Customer</th>
+                  <th className="p-3.5 font-semibold">Issue Date</th>
+                  <th className="p-3.5 font-semibold">Due Date</th>
+                  <th className="p-3.5 font-semibold">Status</th>
+                  <th className="p-3.5 font-semibold text-right">Amount</th>
+                  <th className="p-3.5 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {filteredInvoices.map((inv) => (
-                  <tr
-                    key={inv.id}
-                    className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
-                  >
-                    <td className="px-6 py-4 font-mono font-bold text-blue-600 dark:text-blue-400">
-                      {inv.invoice_number}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100">
-                      {inv.customer?.name || "Unnamed Client"}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500 font-mono">
-                      {formatDate(inv.issue_date)}
-                    </td>
-                    <td className="px-6 py-4 text-slate-500 font-mono">
-                      {formatDate(inv.due_date)}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100 font-mono text-sm">
-                      {formatCurrency(inv.total_amount)}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge
-                        variant={
-                          inv.status === "paid"
-                            ? "success"
-                            : inv.status === "overdue"
-                            ? "destructive"
-                            : inv.status === "sent"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {inv.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPreviewInvoice(inv)}
-                          className="h-8 px-2 text-slate-600 dark:text-slate-300 gap-1"
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {filteredInvoices.map((inv) => {
+                  const isSelected = selectedIds.includes(inv.id);
+                  return (
+                    <tr
+                      key={inv.id}
+                      className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
+                        isSelected ? "bg-indigo-50/40 dark:bg-indigo-950/30" : ""
+                      }`}
+                    >
+                      <td className="p-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectRow(inv.id)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
+                      <td className="p-3.5 font-semibold font-mono text-indigo-600 dark:text-indigo-400">
+                        <div className="flex items-center gap-1.5">
+                          <span>{inv.invoice_number}</span>
+                          {inv.is_recurring && (
+                            <span
+                              className="p-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300"
+                              title={`Recurring: ${inv.recurrence_interval}`}
+                            >
+                              <Repeat className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-3.5 font-medium text-slate-800 dark:text-slate-200">
+                        {inv.customer?.name || "Anonymous Client"}
+                      </td>
+                      <td className="p-3.5 text-slate-500">{formatDate(inv.issue_date)}</td>
+                      <td className="p-3.5 text-slate-500">{formatDate(inv.due_date)}</td>
+                      <td className="p-3.5">
+                        <Badge
+                          variant={
+                            inv.status === "paid"
+                              ? "success"
+                              : inv.status === "sent"
+                              ? "default"
+                              : inv.status === "overdue"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                          className="capitalize text-[10px]"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View</span>
-                        </Button>
-                        <DownloadInvoicePDFButton invoice={inv} />
-                        {inv.status !== "paid" && (
+                          {inv.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3.5 text-right font-semibold font-mono text-slate-900 dark:text-slate-100">
+                        {formatCurrency(inv.total_amount)}
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => handleMarkPaid(inv.id)}
-                            className="h-8 px-2 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                            onClick={() => setPreviewInvoice(inv)}
+                            className="h-7 px-2 text-xs"
                           >
-                            Mark Paid
+                            <Eye className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+
+                          <DownloadInvoicePDFButton invoice={inv} />
+
+                          {inv.status !== "paid" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleMarkPaid(inv.id)}
+                              className="h-7 text-[11px] gap-1 px-2"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                              Paid
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Invoice Detail & Preview Modal */}
+      {/* Floating Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedCount={selectedIds.length}
+        totalCount={filteredInvoices.length}
+        onClearSelection={() => setSelectedIds([])}
+        onDeleteSelected={handleBulkDelete}
+        onStatusChangeSelected={handleBulkStatusChange}
+        onExportSelected={() => {
+          const selected = invoices.filter((i) => selectedIds.includes(i.id));
+          handleExportCSV(selected);
+        }}
+        statusOptions={[
+          { label: "Draft", value: "draft" },
+          { label: "Sent", value: "sent" },
+          { label: "Paid", value: "paid" },
+          { label: "Cancelled", value: "cancelled" },
+        ]}
+        entityName="invoices"
+      />
+
+      {/* Invoice Detail & PDF Preview Modal */}
       {previewInvoice && (
         <Modal
           isOpen={Boolean(previewInvoice)}
           onClose={() => setPreviewInvoice(null)}
-          title={`Invoice ${previewInvoice.invoice_number}`}
-          description={`Issued to ${previewInvoice.customer?.name} on ${previewInvoice.issue_date}`}
-          maxWidth="2xl"
+          title={`Invoice Preview: ${previewInvoice.invoice_number}`}
+          description={`Issued to ${previewInvoice.customer?.name || "Client"} on ${formatDate(
+            previewInvoice.issue_date
+          )}`}
         >
-          <div className="space-y-6">
-            {/* Header section */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-              <div>
-                <span className="text-xs text-slate-400">Total Billed</span>
-                <p className="text-2xl font-bold font-display text-blue-600 dark:text-blue-400">
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Amount:</span>
+                <span className="font-bold text-sm text-slate-900 dark:text-white">
                   {formatCurrency(previewInvoice.total_amount)}
-                </p>
+                </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Status:</span>
                 <Badge
-                  variant={
-                    previewInvoice.status === "paid"
-                      ? "success"
-                      : previewInvoice.status === "overdue"
-                      ? "destructive"
-                      : "default"
-                  }
+                  variant={previewInvoice.status === "paid" ? "success" : "destructive"}
+                  className="capitalize text-[10px]"
                 >
-                  {previewInvoice.status.toUpperCase()}
+                  {previewInvoice.status}
                 </Badge>
-                <DownloadInvoicePDFButton invoice={previewInvoice} />
               </div>
-            </div>
-
-            {/* Client info */}
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                  Billed To
-                </span>
-                <p className="font-bold text-slate-900 dark:text-slate-100">
-                  {previewInvoice.customer?.name}
-                </p>
-                <p className="text-slate-500">{previewInvoice.customer?.email}</p>
-                <p className="text-slate-500">{previewInvoice.customer?.address}</p>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                  Payment Terms
-                </span>
-                <p className="text-slate-700 dark:text-slate-300">
-                  Due: {formatDate(previewInvoice.due_date)}
-                </p>
-                <p className="text-slate-500">{previewInvoice.terms || "Standard Net 30"}</p>
-              </div>
-            </div>
-
-            {/* Line items table */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-medium">
-                  <tr>
-                    <th className="px-4 py-2.5">Item Description</th>
-                    <th className="px-4 py-2.5 text-right">Qty</th>
-                    <th className="px-4 py-2.5 text-right">Price</th>
-                    <th className="px-4 py-2.5 text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {previewInvoice.items?.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="px-4 py-2.5 font-medium">{item.description}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{item.quantity}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">
-                        ${item.unit_price.toFixed(2)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-bold font-mono">
-                        ${item.total_price.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals Breakdown */}
-            <div className="flex justify-end text-xs">
-              <div className="w-64 space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-3">
-                <div className="flex justify-between text-slate-500">
-                  <span>Subtotal:</span>
-                  <span className="font-mono font-medium">${previewInvoice.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Tax ({previewInvoice.tax_rate}%):</span>
-                  <span className="font-mono font-medium">${previewInvoice.tax_amount.toFixed(2)}</span>
-                </div>
-                {previewInvoice.discount_amount > 0 && (
-                  <div className="flex justify-between text-emerald-600">
-                    <span>Discount:</span>
-                    <span className="font-mono font-medium">
-                      -${previewInvoice.discount_amount.toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-bold text-slate-900 dark:text-slate-100 pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <span>Total Due:</span>
-                  <span className="font-mono text-blue-600 dark:text-blue-400">
-                    ${previewInvoice.total_amount.toFixed(2)}
+              {previewInvoice.is_recurring && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Recurrence:</span>
+                  <span className="font-semibold text-indigo-600 capitalize">
+                    {previewInvoice.recurrence_interval} (Next: {previewInvoice.next_issue_date || "N/A"})
                   </span>
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Actions footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSendReminder(previewInvoice)}
-                className="gap-1.5"
-              >
-                <BellRing className="w-3.5 h-3.5" />
-                Send Reminder Email
+            <div className="flex justify-end gap-2 pt-2">
+              <DownloadInvoicePDFButton invoice={previewInvoice} />
+              <Button variant="outline" onClick={() => setPreviewInvoice(null)}>
+                Close Preview
               </Button>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPreviewInvoice(null)}>
-                  Close
-                </Button>
-                {previewInvoice.status !== "paid" && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleMarkPaid(previewInvoice.id)}
-                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Mark as Paid
-                  </Button>
-                )}
-              </div>
             </div>
           </div>
         </Modal>

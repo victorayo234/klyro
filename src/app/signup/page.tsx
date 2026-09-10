@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { KlyroLogo } from "@/components/ui/logo";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -154,7 +155,7 @@ export default function SignupPage() {
       toast.success("Account created!", {
         description: "Welcome to Klyro! Setting up your workspace…",
       });
-      router.push("/dashboard");
+      router.push("/onboarding");
       router.refresh();
     } catch (err: unknown) {
       const msg =
@@ -175,14 +176,7 @@ export default function SignupPage() {
       <div className="w-full max-w-lg space-y-6">
         {/* Brand header */}
         <div className="text-center space-y-2">
-          <Link href="/" className="inline-flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white font-display font-bold shadow-sm">
-              K
-            </div>
-            <span className="font-display font-bold text-xl tracking-tight text-slate-900 dark:text-slate-100">
-              Klyro
-            </span>
-          </Link>
+          <KlyroLogo size="lg" href="/" className="justify-center" />
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Start your 14-day free trial • Set up your business workspace
           </p>

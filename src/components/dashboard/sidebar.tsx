@@ -25,35 +25,40 @@ import {
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
+import { KlyroGlyph } from "@/components/ui/logo";
+
+import { TerminologyConfig } from "@/lib/terminology";
 
 interface SidebarProps {
   businessName?: string;
   userRole?: string;
   userName?: string;
   lowStockCount?: number;
+  terminology?: TerminologyConfig;
 }
-
-const navItems = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/dashboard/customers", label: "Customers", icon: Users },
-  { href: "/dashboard/inventory", label: "Inventory", icon: Package, badgeKey: "lowStock" },
-  { href: "/dashboard/sales", label: "Sales & Expenses", icon: BadgeDollarSign },
-  { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
-  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/staff", label: "Staff & Roles", icon: UserCheck },
-  { href: "/dashboard/activity", label: "Activity Logs", icon: History },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
-];
 
 export function Sidebar({
   businessName = "Klyro Workspace",
   userRole = "Owner",
   userName = "Business Admin",
   lowStockCount = 0,
+  terminology,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isSidebarCollapsed, toggleSidebar, isDarkMode, toggleDarkMode } = useAppStore();
+
+  const navItems = [
+    { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { href: "/dashboard/customers", label: terminology?.customersLabel || "Customers", icon: Users },
+    { href: "/dashboard/inventory", label: terminology?.inventoryLabel || "Inventory", icon: Package, badgeKey: "lowStock" },
+    { href: "/dashboard/sales", label: `${terminology?.salesLabel || "Sales"} & Expenses`, icon: BadgeDollarSign },
+    { href: "/dashboard/invoices", label: "Invoices", icon: FileText },
+    { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/dashboard/staff", label: "Staff & Roles", icon: UserCheck },
+    { href: "/dashboard/activity", label: "Activity Logs", icon: History },
+    { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  ];
 
   const handleSignOut = async () => {
     try {
@@ -74,16 +79,14 @@ export function Sidebar({
     >
       {/* Brand Header */}
       <div className="h-16 border-b border-slate-100 dark:border-slate-800/80 px-4 flex items-center justify-between">
-        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-          <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 font-display font-bold shadow-xs">
-            K
-          </div>
+        <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden group">
+          <KlyroGlyph size={30} />
           {!isSidebarCollapsed && (
             <div className="flex flex-col overflow-hidden">
-              <span className="font-display font-bold text-base text-slate-900 dark:text-slate-100 tracking-tight leading-none">
+              <span className="font-display font-bold text-base text-slate-900 dark:text-slate-100 tracking-tight leading-none group-hover:text-indigo-600 transition-colors">
                 Klyro
               </span>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-1">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-1 font-medium">
                 {businessName}
               </span>
             </div>

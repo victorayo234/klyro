@@ -8,35 +8,43 @@ import {
   Search,
   Plus,
   Download,
-  MoreVertical,
   Mail,
   Phone,
   MapPin,
-  Tag,
   Filter,
   Trash2,
   Edit2,
-  ExternalLink,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Drawer } from "@/components/ui/drawer";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Customer } from "@/types/database";
+import { BulkActionsBar } from "@/components/dashboard/bulk-actions-bar";
+import { CSVImportWizard } from "@/components/dashboard/csv-import-wizard";
+import { SavedFilters } from "@/components/dashboard/saved-filters";
+import { Customer, SavedFilter } from "@/types/database";
 import {
   getCustomers,
   createCustomer,
   updateCustomer,
   deleteCustomer,
+  bulkDeleteCustomers,
+  bulkUpdateCustomerStatus,
 } from "@/lib/actions/customers";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [isLoading, setIsLoading] = React.useState(true);
+
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [activeSavedFilterId, setActiveSavedFilterId] = React.useState<string | null>(null);
 
   // Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
@@ -67,6 +75,17 @@ export default function CustomersPage() {
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Handle ?action=new from command palette
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("action") === "new") {
+        openCreateDrawer();
+        window.history.replaceState({}, "", "/dashboard/customers");
+      }
+    }
+  }, []);
 
   const openCreateDrawer = () => {
     setSelectedCustomer(null);
@@ -145,6 +164,40 @@ export default function CustomersPage() {
     }
   };
 
+  // Bulk actions
+  const handleBulkDelete = async () => {
+    await bulkDeleteCustomers(Array.from(selectedIds));
+    toast.success(`${selectedIds.size} customers deleted`);
+    setSelectedIds(new Set());
+    loadData();
+  };
+
+  const handleBulkStatusChange = async (status: string) => {
+    await bulkUpdateCustomerStatus(
+      Array.from(selectedIds),
+      status as "active" | "inactive" | "lead"
+    );
+    toast.success(`Updated ${selectedIds.size} customers to "${status}"`);
+    setSelectedIds(new Set());
+    loadData();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCustomers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCustomers.map((c) => c.id)));
+    }
+  };
+
   // CSV Export via PapaParse
   const handleExportCSV = () => {
     if (customers.length === 0) {
@@ -176,6 +229,19 @@ export default function CustomersPage() {
     toast.success("Customer list exported to CSV");
   };
 
+  const handleSavedFilterSelect = (filter: SavedFilter | null) => {
+    if (!filter) {
+      setActiveSavedFilterId(null);
+      setStatusFilter("all");
+      setSearchQuery("");
+      return;
+    }
+    setActiveSavedFilterId(filter.id);
+    const cfg = filter.filter_criteria as Record<string, unknown>;
+    if (cfg.status) setStatusFilter(cfg.status as string);
+    if (cfg.search) setSearchQuery(cfg.search as string);
+  };
+
   // Filtering
   const filteredCustomers = customers.filter((cust) => {
     const matchesSearch =
@@ -187,23 +253,35 @@ export default function CustomersPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const allSelected =
+    filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length;
+  const someSelected = selectedIds.size > 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-display text-slate-900 dark:text-slate-100">
-            Customers & Accounts (CRM)
+            Customers &amp; Accounts
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Manage your client accounts, purchase histories, and contact profiles
+            Manage client accounts, purchase histories, and contact profiles
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* CSV Import Wizard — self-contained, shows its own modal trigger */}
+          <CSVImportWizard
+            type="customers"
+            onSuccess={() => {
+              toast.success("Customers imported successfully");
+              loadData();
+            }}
+          />
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-1.5">
             <Download className="w-3.5 h-3.5" />
-            Export CSV
+            Export
           </Button>
           <Button size="sm" onClick={openCreateDrawer} className="gap-1.5 shadow-xs">
             <Plus className="w-3.5 h-3.5" />
@@ -212,13 +290,38 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {/* Saved Filters */}
+      <SavedFilters
+        tableName="customers"
+        currentFilter={{ status: statusFilter, search: searchQuery }}
+        activeSavedFilterId={activeSavedFilterId}
+        onSelectSavedFilter={handleSavedFilterSelect}
+      />
+
+      {/* Bulk Actions Bar */}
+      {someSelected && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          totalCount={filteredCustomers.length}
+          entityName="customers"
+          onClearSelection={() => setSelectedIds(new Set())}
+          onDeleteSelected={handleBulkDelete}
+          onStatusChangeSelected={handleBulkStatusChange}
+          statusOptions={[
+            { label: "Active", value: "active" },
+            { label: "Inactive", value: "inactive" },
+            { label: "Lead", value: "lead" },
+          ]}
+        />
+      )}
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
         <div className="relative flex-1 max-w-sm">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by client name, email, or tag..."
+            placeholder="Search by name, email, or tag..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -252,7 +355,7 @@ export default function CustomersPage() {
           <EmptyState
             type="customers"
             title="No customers found"
-            description="Get started by adding your first business customer to begin logging sales and generating invoices."
+            description="Get started by adding your first customer or importing from a CSV file."
             actionLabel="Add Customer"
             onAction={openCreateDrawer}
           />
@@ -261,23 +364,50 @@ export default function CustomersPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-500 font-medium">
                 <tr>
-                  <th className="px-6 py-3.5">Customer / Organization</th>
-                  <th className="px-6 py-3.5">Contact Details</th>
-                  <th className="px-6 py-3.5">Tags</th>
-                  <th className="px-6 py-3.5">Total Lifetime Spend</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="px-4 py-3.5 w-10">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-slate-400 hover:text-blue-600 transition-colors"
+                      title={allSelected ? "Deselect all" : "Select all"}
+                    >
+                      {allSelected ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-3.5">Customer / Organization</th>
+                  <th className="px-4 py-3.5">Contact Details</th>
+                  <th className="px-4 py-3.5">Tags</th>
+                  <th className="px-4 py-3.5">Total Lifetime Spend</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {filteredCustomers.map((cust) => (
                   <tr
                     key={cust.id}
-                    className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+                    className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${
+                      selectedIds.has(cust.id) ? "bg-blue-50/40 dark:bg-blue-950/20" : ""
+                    }`}
                   >
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
+                      <button
+                        onClick={() => toggleSelect(cust.id)}
+                        className="text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        {selectedIds.has(cust.id) ? (
+                          <CheckSquare className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <Square className="w-4 h-4" />
+                        )}
+                      </button>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold flex items-center justify-center shrink-0 text-[11px]">
                           {cust.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -292,7 +422,7 @@ export default function CustomersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 space-y-1">
+                    <td className="px-4 py-4 space-y-1">
                       {cust.email && (
                         <p className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                           <Mail className="w-3 h-3 text-slate-400" /> {cust.email}
@@ -304,7 +434,7 @@ export default function CustomersPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-1">
                         {cust.tags?.map((tag, i) => (
                           <span
@@ -316,10 +446,10 @@ export default function CustomersPage() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
+                    <td className="px-4 py-4 font-semibold text-slate-900 dark:text-slate-100 font-mono">
                       {formatCurrency(cust.total_spend)}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4">
                       <Badge
                         variant={
                           cust.status === "active"
@@ -332,7 +462,7 @@ export default function CustomersPage() {
                         {cust.status}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEditDrawer(cust)}
@@ -420,7 +550,7 @@ export default function CustomersPage() {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Account Notes & Terms
+              Account Notes &amp; Terms
             </label>
             <textarea
               rows={3}
