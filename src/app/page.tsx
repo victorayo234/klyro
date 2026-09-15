@@ -15,7 +15,6 @@ import {
   TrendingUp,
   AlertTriangle,
   FileCheck2,
-  Sparkles,
   Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,16 +64,6 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative pt-20 pb-16 md:pt-28 md:pb-24 px-6 overflow-hidden bg-dot-grid">
         <div className="max-w-5xl mx-auto text-center space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800/80 bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-medium"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-500" />
-            <span>Introducing Klyro 2.0 • Precision Business Operating System</span>
-          </motion.div>
-
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -82,7 +71,7 @@ export default function LandingPage() {
             className="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.08] text-slate-900 dark:text-white max-w-4xl mx-auto"
           >
             Complete control over your{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500">
+            <span className="text-indigo-600 dark:text-indigo-400">
               sales, inventory & cashflow.
             </span>
           </motion.h1>

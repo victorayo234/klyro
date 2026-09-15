@@ -169,8 +169,8 @@ export function InvoicePDFDocument({ invoice }: { invoice: Invoice }) {
               <Text style={styles.logoLetter}>K</Text>
             </View>
             <View>
-              <Text style={styles.brandName}>Klyro Business Platform</Text>
-              <Text style={styles.textMuted}>Financial & Operations Suite</Text>
+              <Text style={styles.brandName}>Klyro</Text>
+              <Text style={styles.textMuted}>Invoicing & Operations</Text>
             </View>
           </View>
           <View style={styles.invoiceMeta}>

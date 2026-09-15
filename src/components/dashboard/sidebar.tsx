@@ -19,13 +19,14 @@ import {
   Sun,
   Moon,
   LogOut,
-  Sparkles,
   AlertTriangle,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { KlyroGlyph } from "@/components/ui/logo";
+import { useRouteTransition } from "@/components/dashboard/route-transition-loader";
 
 import { TerminologyConfig } from "@/lib/terminology";
 
@@ -46,7 +47,19 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isSidebarCollapsed, toggleSidebar, isDarkMode, toggleDarkMode } = useAppStore();
+  const { isSidebarCollapsed, toggleSidebar } = useAppStore();
+  const { startTransition } = useRouteTransition();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDarkMode = mounted ? resolvedTheme === "dark" : false;
+  const toggleDarkMode = () => {
+    setTheme(isDarkMode ? "light" : "dark");
+  };
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -117,6 +130,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => startTransition(item.href)}
               title={isSidebarCollapsed ? item.label : undefined}
               className={cn(
                 "group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors relative",

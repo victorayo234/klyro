@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { X, LayoutDashboard, Users, Package, BadgeDollarSign, FileText, BarChart3, UserCheck, History, Settings } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { KlyroLogo } from "@/components/ui/logo";
+import { useRouteTransition } from "@/components/dashboard/route-transition-loader";
 import { TerminologyConfig } from "@/lib/terminology";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface MobileNavProps {
 export function MobileNav({ terminology }: MobileNavProps) {
   const pathname = usePathname();
   const { isMobileNavOpen, setMobileNavOpen } = useAppStore();
+  const { startTransition } = useRouteTransition();
 
   if (!isMobileNavOpen) return null;
 
@@ -60,7 +62,10 @@ export function MobileNav({ terminology }: MobileNavProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setMobileNavOpen(false)}
+                onClick={() => {
+                  startTransition(item.href);
+                  setMobileNavOpen(false);
+                }}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors",
                   isActive

@@ -152,7 +152,7 @@ export async function sendWeeklySummaryDigest(params: {
 }) {
   const html = `
     <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
-      <h2 style="color: #4338ca; margin-top: 0;">Weekly Operations Digest — ${params.businessName}</h2>
+      <h2 style="color: #4338ca; margin-top: 0;">Weekly Operations Digest - ${params.businessName}</h2>
       <p style="color: #475569; font-size: 14px;">Here is your executive operational summary for the past 7 days:</p>
       <div style="margin: 24px 0; padding: 16px; background-color: #f8fafc; border-radius: 8px; display: flex; gap: 20px;">
         <div>

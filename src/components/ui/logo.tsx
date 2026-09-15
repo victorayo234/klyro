@@ -18,12 +18,15 @@ const sizeMap = {
   xl: { icon: 48, text: "text-3xl", gap: "gap-3.5" },
 };
 
-/**
- * Geometric Vector Glyph:
- * Three interlocking ascending geometric prisms forming a converging chevron,
- * symbolizing operational consolidation, upward financial momentum, and telemetry precision.
- */
-export function KlyroGlyph({ size = 28, className }: { size?: number; className?: string }) {
+export function KlyroGlyph({
+  size = 28,
+  className,
+  color,
+}: {
+  size?: number;
+  className?: string;
+  color?: string;
+}) {
   return (
     <svg
       width={size}
@@ -31,46 +34,27 @@ export function KlyroGlyph({ size = 28, className }: { size?: number; className?
       viewBox="0 0 36 36"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={cn("shrink-0 transition-transform duration-200 hover:scale-105", className)}
-      aria-label="Klyro Logo Icon"
+      className={cn(
+        "shrink-0 transition-transform duration-200 text-indigo-600 dark:text-indigo-400 group-hover:scale-105",
+        className
+      )}
+      style={color ? { color } : undefined}
+      aria-label="Klyro Logomark"
     >
-      <defs>
-        <linearGradient id="klyro-grad-primary" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#4338ca" />
-        </linearGradient>
-        <linearGradient id="klyro-grad-accent" x1="12" y1="6" x2="30" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#38bdf8" />
-          <stop offset="100%" stopColor="#6366f1" />
-        </linearGradient>
-        <linearGradient id="klyro-grad-ambient" x1="8" y1="16" x2="26" y2="34" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#818cf8" />
-          <stop offset="100%" stopColor="#312e81" />
-        </linearGradient>
-      </defs>
+      {/* Precision vertical stem */}
+      <rect x="5" y="4" width="6.5" height="28" rx="2" fill="currentColor" />
 
-      {/* Base Foundation Prism */}
+      {/* Ascending diagonal upper blade */}
       <path
-        d="M 6 27 L 16 9 L 21 17 L 12 31 Z"
-        fill="url(#klyro-grad-primary)"
-        fillOpacity="0.95"
+        d="M 16.5 19 L 26.2 5.4 C 26.9 4.4 28.3 4.2 29.2 4.9 L 29.7 5.3 C 30.6 6.0 30.7 7.3 30.0 8.2 L 20.8 21.2 Z"
+        fill="currentColor"
       />
 
-      {/* Ascending Converging Apex Blade (Growth Arrow) */}
+      {/* Descending diagonal lower blade */}
       <path
-        d="M 16 9 L 26 5 L 30 14 L 20 18 Z"
-        fill="url(#klyro-grad-accent)"
+        d="M 17.8 17.8 L 28.5 30.8 C 29.3 31.7 29.1 33.1 28.2 33.8 L 27.6 34.3 C 26.7 34.9 25.4 34.7 24.6 33.8 L 15.2 22.4 Z"
+        fill="currentColor"
       />
-
-      {/* Interlocking Consolidation Plane */}
-      <path
-        d="M 18 19 L 29 15 L 25 30 L 14 30 Z"
-        fill="url(#klyro-grad-ambient)"
-        fillOpacity="0.85"
-      />
-
-      {/* Micro Focal Core (Precision Indicator) */}
-      <circle cx="20" cy="18" r="1.5" fill="#ffffff" fillOpacity="0.9" />
     </svg>
   );
 }
@@ -86,7 +70,10 @@ export function KlyroLogo({
 
   const content = (
     <span className={cn("inline-flex items-center select-none group", config.gap, className)}>
-      <KlyroGlyph size={config.icon} />
+      <KlyroGlyph
+        size={config.icon}
+        className={variant === "white" ? "text-white" : undefined}
+      />
       {!iconOnly && (
         <span
           className={cn(

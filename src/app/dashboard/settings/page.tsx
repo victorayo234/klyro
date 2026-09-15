@@ -27,13 +27,21 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Modal } from "@/components/ui/modal";
 import { createClient } from "@/lib/supabase/client";
 import { updateBusinessSettings, exportAllBusinessData } from "@/lib/actions/settings";
+import { useTheme } from "next-themes";
 import { useAppStore } from "@/lib/store";
 
 type ThemeOption = "light" | "dark" | "system";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = React.useState<"general" | "billing" | "notifications" | "security" | "data" | "danger">("general");
-  const { themePreference, setTheme } = useAppStore();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const themePreference = mounted ? (theme || "system") : "system";
 
   // General business profile state
   const [bizName, setBizName] = React.useState("Acme Global Solutions");
@@ -180,7 +188,7 @@ export default function SettingsPage() {
       // Trigger a test notification via the email service
       const res = await fetch("/api/notifications/test", { method: "POST" });
       if (!res.ok) throw new Error("Test email request failed");
-      toast.success("Test email sent — check your inbox");
+      toast.success("Test email sent - check your inbox");
     } catch {
       toast.info("Email service not configured. Check RESEND_API_KEY in environment variables.", {
         duration: 6000,
@@ -666,7 +674,7 @@ export default function SettingsPage() {
                 Export Workspace Data
               </CardTitle>
               <CardDescription>
-                Download a complete JSON backup of all your business data — customers, products, invoices, sales, and staff
+                Download a complete JSON backup of all your business data: customers, products, invoices, sales, and staff
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

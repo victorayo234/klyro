@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Sparkles,
   DollarSign,
   ChevronRight,
   FileSpreadsheet,
@@ -22,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { KlyroLogo } from "@/components/ui/logo";
-import { completeOnboarding } from "@/lib/actions/onboarding";
+import { completeOnboarding, getBusinessOnboardingStatus } from "@/lib/actions/onboarding";
 import { CSVImportWizard } from "@/components/dashboard/csv-import-wizard";
 import { cn } from "@/lib/utils";
 
@@ -66,8 +65,8 @@ const PRIMARY_GOALS = [
 
 const TEAM_SIZES = [
   { id: "solo", label: "Solo Operator", desc: "Just myself" },
-  { id: "2-10", label: "Small Team", desc: "2 – 10 people" },
-  { id: "11-50", label: "Growing Company", desc: "11 – 50 people" },
+  { id: "2-10", label: "Small Team", desc: "2 - 10 people" },
+  { id: "11-50", label: "Growing Company", desc: "11 - 50 people" },
   { id: "50+", label: "Mid-Market / Enterprise", desc: "50+ people" },
 ];
 
@@ -90,6 +89,17 @@ export default function OnboardingPage() {
   const [currency, setCurrency] = React.useState("USD");
   const [primaryGoal, setPrimaryGoal] = React.useState("track_cashflow");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isCompleted, setIsCompleted] = React.useState(false);
+
+  // Reverse guard: if already completed, navigate straight to dashboard
+  React.useEffect(() => {
+    getBusinessOnboardingStatus().then((status) => {
+      const biz = status?.business as { onboarding_completed?: boolean } | null;
+      if (biz?.onboarding_completed) {
+        router.replace("/dashboard");
+      }
+    });
+  }, [router]);
 
   // CSV Import Modal in Step 3
   const [activeImportType, setActiveImportType] = React.useState<"customers" | "products" | null>(null);
@@ -110,11 +120,11 @@ export default function OnboardingPage() {
         return;
       }
 
-      toast.success("Workspace personalized!", {
-        description: "Your dashboard has been tailored to your business goals.",
-      });
-      router.push("/dashboard");
-      router.refresh();
+      setIsCompleted(true);
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 700);
     } catch {
       toast.error("Failed to complete onboarding");
       setIsSubmitting(false);
@@ -133,36 +143,65 @@ export default function OnboardingPage() {
 
       {/* Main Container */}
       <main className="max-w-3xl w-full mx-auto my-6">
-        {/* Progress Bar */}
-        <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-6">
-          <div
-            className="h-full bg-indigo-600 transition-all duration-300"
-            style={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }}
-          />
-        </div>
+        {isCompleted ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="max-w-md mx-auto my-12 text-center space-y-4 p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold font-display text-slate-900 dark:text-slate-100">
+                Workspace Configured
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Your tailored workspace is ready. Opening your dashboard...
+              </p>
+            </div>
+            <div className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mt-4">
+              <motion.div
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
+                transition={{ duration: 0.65, ease: "easeInOut" }}
+                className="h-full bg-indigo-600 rounded-full"
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <>
+            {/* Progress Bar */}
+            <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden mb-6">
+              <motion.div
+                className="h-full bg-indigo-600 transition-all duration-300"
+                animate={{ width: step === 1 ? "33%" : step === 2 ? "66%" : "100%" }}
+              />
+            </div>
 
-        <AnimatePresence mode="wait">
-          {/* STEP 1: Business Basics */}
-          {step === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className="p-6 md:p-8 space-y-6">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-2">
-                    <Sparkles className="w-3.5 h-3.5" /> Workspace Baseline
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">
-                    Tell us about your business
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    We adapt terminology and currency across the entire system based on your answers.
-                  </p>
-                </div>
+            <AnimatePresence mode="wait">
+              {/* STEP 1: Business Basics */}
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -15 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="p-6 md:p-8 space-y-6">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mb-2">
+                        Step 1 of 3: Business Profile
+                      </div>
+                      <h2 className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">
+                        Tell us about your business
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        We adapt terminology and currency across the entire system based on your answers.
+                      </p>
+                    </div>
 
                 <div className="space-y-4">
                   {/* Industry Selection */}
@@ -208,9 +247,11 @@ export default function OnboardingPage() {
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                       {TEAM_SIZES.map((ts) => (
-                        <button
+                        <motion.button
                           key={ts.id}
                           type="button"
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.97 }}
                           onClick={() => setTeamSize(ts.id)}
                           className={cn(
                             "p-3 rounded-xl border text-left transition-all",
@@ -228,7 +269,7 @@ export default function OnboardingPage() {
                             {ts.label}
                           </span>
                           <span className="text-[10px] text-slate-400">{ts.desc}</span>
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
@@ -240,9 +281,11 @@ export default function OnboardingPage() {
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                       {CURRENCIES.map((curr) => (
-                        <button
+                        <motion.button
                           key={curr.code}
                           type="button"
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.97 }}
                           onClick={() => setCurrency(curr.code)}
                           className={cn(
                             "p-2.5 rounded-lg border text-left flex items-center justify-between transition-all",
@@ -253,7 +296,7 @@ export default function OnboardingPage() {
                         >
                           <span className="text-xs font-medium">{curr.label}</span>
                           <span className="font-mono text-xs font-bold">{curr.symbol}</span>
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
@@ -279,8 +322,8 @@ export default function OnboardingPage() {
             >
               <Card className="p-6 md:p-8 space-y-6">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-2">
-                    <TrendingUp className="w-3.5 h-3.5" /> Dashboard Personalization
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mb-2">
+                    Step 2 of 3: Primary Objective
                   </div>
                   <h2 className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">
                     What is your primary focus right now?
@@ -295,8 +338,10 @@ export default function OnboardingPage() {
                     const Icon = g.icon;
                     const isSelected = primaryGoal === g.id;
                     return (
-                      <div
+                      <motion.div
                         key={g.id}
+                        whileHover={{ scale: 1.005 }}
+                        whileTap={{ scale: 0.985 }}
                         onClick={() => setPrimaryGoal(g.id)}
                         className={cn(
                           "p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-4",
@@ -321,7 +366,7 @@ export default function OnboardingPage() {
                             {g.description}
                           </p>
                         </div>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
@@ -349,8 +394,8 @@ export default function OnboardingPage() {
             >
               <Card className="p-6 md:p-8 space-y-6">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mb-2">
-                    <FileSpreadsheet className="w-3.5 h-3.5" /> Initial Catalog & CRM Data
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mb-2">
+                    Step 3 of 3: Initial Data Setup
                   </div>
                   <h2 className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">
                     Bring in your existing records
@@ -432,7 +477,9 @@ export default function OnboardingPage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </main>
+      </>
+    )}
+  </main>
 
       {/* Footer reassurance */}
       <footer className="max-w-3xl w-full mx-auto text-center text-xs text-slate-400">

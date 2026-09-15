@@ -447,7 +447,7 @@ export function CSVImportWizard({
                       <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
                         {targetFields.slice(0, 4).map((f) => (
                           <td key={f.key} className="p-2 font-mono text-[11px] truncate max-w-[140px]">
-                            {String(rec[f.key] || "—")}
+                            {String(rec[f.key] || "-")}
                           </td>
                         ))}
                       </tr>

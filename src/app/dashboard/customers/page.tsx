@@ -271,7 +271,7 @@ export default function CustomersPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* CSV Import Wizard — self-contained, shows its own modal trigger */}
+          {/* CSV Import Wizard - self-contained, shows its own modal trigger */}
           <CSVImportWizard
             type="customers"
             onSuccess={() => {

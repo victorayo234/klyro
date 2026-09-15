@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit, Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -18,9 +19,16 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Klyro — Business Management Platform",
-  description: "All-in-one business management platform for small and medium enterprises. Manage CRM, inventory, sales, expenses, invoices, and analytics from a unified dashboard.",
-  keywords: ["business management", "SaaS", "CRM", "inventory management", "invoicing", "sales analytics"],
+  title: {
+    default: "Klyro",
+    template: "Klyro - %s",
+  },
+  description: "Precision business operating system for small and medium enterprises. Manage CRM, inventory, sales, expenses, invoices, and analytics from a unified workspace.",
+  keywords: ["business management", "CRM", "inventory management", "invoicing", "sales analytics"],
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -34,46 +42,27 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${outfit.variable} ${inter.variable} h-full antialiased`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var stored = localStorage.getItem("klyro_theme");
-                  var isDark = false;
-                  if (stored === "dark") {
-                    isDark = true;
-                  } else if (stored === "light") {
-                    isDark = false;
-                  } else {
-                    isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-                  }
-                  if (isDark) {
-                    document.documentElement.classList.add("dark");
-                  } else {
-                    document.documentElement.classList.remove("dark");
-                  }
-                } catch(e) {}
-              })();
-            `,
-          }}
-        />
-      </head>
-      <body className="min-h-full flex flex-col font-sans bg-[var(--background)] text-[var(--foreground)] selection:bg-blue-600 selection:text-white">
-        {children}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "var(--card)",
-              color: "var(--card-foreground)",
-              border: "1px solid var(--border)",
-              borderRadius: "0.5rem",
-              fontSize: "0.875rem",
-            },
-          }}
-        />
+      <body className="min-h-full flex flex-col font-sans bg-[var(--background)] text-[var(--foreground)] selection:bg-indigo-600 selection:text-white">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "var(--card)",
+                color: "var(--card-foreground)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.5rem",
+                fontSize: "0.875rem",
+              },
+            }}
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

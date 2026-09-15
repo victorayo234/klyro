@@ -1,21 +1,16 @@
 <svg width="32" height="32" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="fav-grad-1" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#6366f1" />
-      <stop offset="100%" stopColor="#4338ca" />
-    </linearGradient>
-    <linearGradient id="fav-grad-2" x1="12" y1="6" x2="30" y2="24" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#38bdf8" />
-      <stop offset="100%" stopColor="#6366f1" />
-    </linearGradient>
-    <linearGradient id="fav-grad-3" x1="8" y1="16" x2="26" y2="34" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#818cf8" />
-      <stop offset="100%" stopColor="#312e81" />
-    </linearGradient>
-  </defs>
-  <rect width="36" height="36" rx="8" fill="#0f172a"/>
-  <path d="M 6 27 L 16 9 L 21 17 L 12 31 Z" fill="url(#fav-grad-1)" fill-opacity="0.95" />
-  <path d="M 16 9 L 26 5 L 30 14 L 20 18 Z" fill="url(#fav-grad-2)" />
-  <path d="M 18 19 L 29 15 L 25 30 L 14 30 Z" fill="url(#fav-grad-3)" fill-opacity="0.85" />
-  <circle cx="20" cy="18" r="1.5" fill="#ffffff" />
+  <rect width="36" height="36" rx="8" fill="#090d16"/>
+  <!-- Precision vertical stem -->
+  <rect x="7" y="6" width="5.5" height="24" rx="1.8" fill="#6366f1" />
+  <!-- Ascending diagonal upper blade -->
+  <path
+    d="M 16.5 19 L 25.2 7.2 C 25.8 6.4 27.0 6.2 27.8 6.8 L 28.2 7.2 C 28.9 7.8 29.0 8.9 28.4 9.7 L 20.2 21.0 Z"
+    fill="#6366f1"
+  />
+  <!-- Descending diagonal lower blade -->
+  <path
+    d="M 17.5 18 L 27.0 29.2 C 27.7 30.0 27.5 31.2 26.7 31.8 L 26.2 32.2 C 25.4 32.7 24.3 32.5 23.6 31.7 L 15.4 21.8 Z"
+    fill="#6366f1"
+  />
 </svg>
+

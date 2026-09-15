@@ -1,8 +1,10 @@
 import * as React from "react";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { MobileNav } from "@/components/dashboard/mobile-nav";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { RouteTransitionProvider } from "@/components/dashboard/route-transition-loader";
 import { createClient } from "@/lib/supabase/server";
 import { getTerminology } from "@/lib/terminology";
 
@@ -17,6 +19,7 @@ export default async function DashboardLayout({
   let lowStockCount = 0;
   let unreadNotificationsCount = 0;
   let industry = "General";
+  let shouldRedirectToOnboarding = false;
 
   try {
     const supabase = await createClient();
@@ -27,7 +30,7 @@ export default async function DashboardLayout({
     if (user) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, role, business_id, businesses(name, industry)")
+        .select("full_name, role, business_id, businesses(name, industry, onboarding_completed)")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -36,29 +39,31 @@ export default async function DashboardLayout({
         userRole = profile.role ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1) : "Staff";
         
         if (profile.businesses && typeof profile.businesses === "object") {
-          const b = profile.businesses as { name?: string; industry?: string };
+          const b = profile.businesses as { name?: string; industry?: string; onboarding_completed?: boolean };
           if (b.name) businessName = b.name;
           if (b.industry) industry = b.industry;
+          if (b.onboarding_completed === false) {
+            shouldRedirectToOnboarding = true;
+          }
         }
 
         if (profile.business_id) {
-          // Real low-stock count
-          const { count: stockCount } = await supabase
-            .from("products")
-            .select("id", { count: "exact", head: true })
-            .eq("business_id", profile.business_id)
-            .filter("quantity", "lte", "reorder_threshold");
+          // Parallelize real low-stock and unread notifications queries
+          const [stockRes, notifRes] = await Promise.all([
+            supabase
+              .from("products")
+              .select("id", { count: "exact", head: true })
+              .eq("business_id", profile.business_id)
+              .filter("quantity", "lte", "reorder_threshold"),
+            supabase
+              .from("notifications")
+              .select("id", { count: "exact", head: true })
+              .eq("business_id", profile.business_id)
+              .eq("is_read", false),
+          ]);
           
-          if (typeof stockCount === "number") lowStockCount = stockCount;
-
-          // Real unread notifications count
-          const { count: notifCount } = await supabase
-            .from("notifications")
-            .select("id", { count: "exact", head: true })
-            .eq("business_id", profile.business_id)
-            .eq("is_read", false);
-
-          if (typeof notifCount === "number") unreadNotificationsCount = notifCount;
+          if (typeof stockRes.count === "number") lowStockCount = stockRes.count;
+          if (typeof notifRes.count === "number") unreadNotificationsCount = notifRes.count;
         }
       }
     }
@@ -66,28 +71,34 @@ export default async function DashboardLayout({
     // Graceful fallback
   }
 
+  if (shouldRedirectToOnboarding) {
+    redirect("/onboarding");
+  }
+
   const terminology = getTerminology(industry);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50/50 dark:bg-slate-950">
-      <Sidebar
-        businessName={businessName}
-        userRole={userRole}
-        userName={userName}
-        lowStockCount={lowStockCount}
-        terminology={terminology}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Topbar
+    <RouteTransitionProvider>
+      <div className="flex h-screen overflow-hidden bg-slate-50/50 dark:bg-slate-950">
+        <Sidebar
           businessName={businessName}
-          unreadNotificationsCount={unreadNotificationsCount}
+          userRole={userRole}
+          userName={userName}
+          lowStockCount={lowStockCount}
+          terminology={terminology}
         />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto space-y-6">{children}</div>
-        </main>
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Topbar
+            businessName={businessName}
+            unreadNotificationsCount={unreadNotificationsCount}
+          />
+          <main className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="max-w-7xl mx-auto space-y-6">{children}</div>
+          </main>
+        </div>
+        <MobileNav terminology={terminology} />
+        <CommandPalette />
       </div>
-      <MobileNav terminology={terminology} />
-      <CommandPalette />
-    </div>
+    </RouteTransitionProvider>
   );
 }

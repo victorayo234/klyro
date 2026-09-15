@@ -1,6 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
-import { Sparkles, AlertTriangle, ArrowRight, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, ShieldCheck, TrendingUp } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface HealthSnapshotProps {

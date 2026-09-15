@@ -367,7 +367,7 @@ export default function SalesAndExpensesPage() {
                           {exp.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{exp.notes || "—"}</td>
+                      <td className="px-6 py-4 text-slate-500">{exp.notes || "-"}</td>
                       <td className="px-6 py-4 font-bold text-red-600 dark:text-red-400 font-mono">
                         {formatCurrency(exp.amount)}
                       </td>
@@ -416,7 +416,7 @@ export default function SalesAndExpensesPage() {
             >
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} — ${p.sale_price} ({p.quantity} in stock)
+                  {p.name} - ${p.sale_price} ({p.quantity} in stock)
                 </option>
               ))}
             </select>

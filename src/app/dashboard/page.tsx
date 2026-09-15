@@ -10,7 +10,6 @@ import {
   PlusCircle,
   FileText,
   Clock,
-  Sparkles,
   SlidersHorizontal,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";

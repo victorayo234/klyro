@@ -10,7 +10,7 @@ import {
   FileText,
   UserPlus,
   X,
-  Sparkles,
+  ListChecks,
   ArrowRight,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -92,11 +92,11 @@ export function OnboardingChecklist({
   }
 
   return (
-    <Card className="p-5 border-indigo-200/80 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50/50 via-white to-indigo-50/30 dark:from-indigo-950/20 dark:via-slate-900 dark:to-indigo-950/10 shadow-xs relative">
+    <Card className="p-5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs relative">
       <div className="flex items-start justify-between gap-4 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Sparkles className="w-4 h-4" />
+            <ListChecks className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold font-display text-slate-900 dark:text-slate-100 flex items-center gap-2">
