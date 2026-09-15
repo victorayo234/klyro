@@ -163,14 +163,19 @@ export default function SignupPage() {
           .select()
           .single();
 
-        if (!bizError && business) {
-          await supabase.from("profiles").upsert({
+        if (bizError) {
+          console.warn("Client-side business creation skipped/failed:", bizError.message);
+        } else if (business) {
+          const { error: profErr } = await supabase.from("profiles").upsert({
             id: user.id,
             business_id: business.id,
             full_name: fullName,
             email,
             role: "owner",
           });
+          if (profErr) {
+            console.warn("Client-side profile upsert skipped/failed:", profErr.message);
+          }
         }
       }
 

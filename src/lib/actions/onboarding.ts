@@ -30,8 +30,38 @@ export async function completeOnboarding(data: OnboardingData) {
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!profile || !profile.business_id) {
-      return { success: false, error: "Business profile not found" };
+    let businessId = profile?.business_id;
+
+    if (!businessId) {
+      // Auto-provision business and profile if not created during signup
+      const { data: newBiz, error: newBizErr } = await supabase
+        .from("businesses")
+        .insert({
+          name: (user.user_metadata?.business_name as string) || "My Workspace",
+          industry: data.industry,
+          team_size_bracket: data.team_size_bracket,
+          primary_goal: data.primary_goal,
+          currency: data.currency,
+          monthly_revenue_target: typeof data.monthly_revenue_target === "number" ? data.monthly_revenue_target : 10000,
+          monthly_profit_target: typeof data.monthly_profit_target === "number" ? data.monthly_profit_target : 4000,
+          onboarding_completed: true,
+        })
+        .select("id")
+        .single();
+
+      if (newBizErr || !newBiz) {
+        return { success: false, error: newBizErr?.message || "Could not create business profile" };
+      }
+
+      businessId = newBiz.id;
+
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        business_id: businessId,
+        full_name: (user.user_metadata?.full_name as string) || user.email?.split("@")[0] || "Owner",
+        email: user.email || "",
+        role: "owner",
+      });
     }
 
     // Update business with answers and financial targets
@@ -47,7 +77,7 @@ export async function completeOnboarding(data: OnboardingData) {
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", profile.business_id);
+      .eq("id", businessId);
 
     if (updateError) {
       return { success: false, error: updateError.message };
@@ -55,10 +85,10 @@ export async function completeOnboarding(data: OnboardingData) {
 
     // Also record an activity log
     await supabase.from("activity_logs").insert({
-      business_id: profile.business_id,
+      business_id: businessId,
       user_id: user.id,
       entity_type: "business",
-      entity_id: profile.business_id,
+      entity_id: businessId,
       action: "Completed personalized onboarding workspace setup",
       details: {
         industry: data.industry,
