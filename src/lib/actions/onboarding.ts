@@ -8,6 +8,8 @@ export interface OnboardingData {
   team_size_bracket: string;
   primary_goal: string;
   currency: string;
+  monthly_revenue_target?: number;
+  monthly_profit_target?: number;
 }
 
 export async function completeOnboarding(data: OnboardingData) {
@@ -32,7 +34,7 @@ export async function completeOnboarding(data: OnboardingData) {
       return { success: false, error: "Business profile not found" };
     }
 
-    // Update business with answers
+    // Update business with answers and financial targets
     const { error: updateError } = await supabase
       .from("businesses")
       .update({
@@ -40,6 +42,8 @@ export async function completeOnboarding(data: OnboardingData) {
         team_size_bracket: data.team_size_bracket,
         primary_goal: data.primary_goal,
         currency: data.currency,
+        monthly_revenue_target: typeof data.monthly_revenue_target === "number" ? data.monthly_revenue_target : 10000,
+        monthly_profit_target: typeof data.monthly_profit_target === "number" ? data.monthly_profit_target : 4000,
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
       })

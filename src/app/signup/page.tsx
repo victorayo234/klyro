@@ -133,7 +133,29 @@ export default function SignupPage() {
         return;
       }
 
-      const user = authData.user;
+      let session = authData.session;
+
+      // If session is null (e.g. if Supabase 'Confirm email' setting is still enabled on server), attempt immediate password sign in
+      if (!session) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          const isUnconfirmed = signInError.message.toLowerCase().includes("confirm") || signInError.message.toLowerCase().includes("not confirmed");
+          const customError = isUnconfirmed
+            ? "Your account was created, but 'Confirm email' is still enabled in your Supabase dashboard. Please turn off 'Confirm email' in Supabase Dashboard → Authentication → Providers → Email to enable instant signup."
+            : signInError.message;
+          setError(customError);
+          toast.error("Action required in Supabase", { description: customError, duration: 8000 });
+          return;
+        }
+
+        session = signInData.session;
+      }
+
+      const user = authData.user || session?.user;
       if (user) {
         const { data: business, error: bizError } = await supabase
           .from("businesses")
@@ -152,8 +174,8 @@ export default function SignupPage() {
         }
       }
 
-      toast.success("Account created!", {
-        description: "Welcome to Klyro! Setting up your workspace…",
+      toast.success("Workspace created!", {
+        description: "Welcome to Klyro! Opening workspace setup…",
       });
       router.push("/onboarding");
       router.refresh();

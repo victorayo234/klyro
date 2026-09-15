@@ -16,9 +16,10 @@ import {
   ArrowLeft,
   DollarSign,
   ChevronRight,
-  FileSpreadsheet,
+  Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { KlyroLogo } from "@/components/ui/logo";
 import { completeOnboarding, getBusinessOnboardingStatus } from "@/lib/actions/onboarding";
@@ -88,6 +89,8 @@ export default function OnboardingPage() {
   const [teamSize, setTeamSize] = React.useState("2-10");
   const [currency, setCurrency] = React.useState("USD");
   const [primaryGoal, setPrimaryGoal] = React.useState("track_cashflow");
+  const [monthlyRevenueTarget, setMonthlyRevenueTarget] = React.useState<number>(10000);
+  const [monthlyProfitTarget, setMonthlyProfitTarget] = React.useState<number>(4000);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCompleted, setIsCompleted] = React.useState(false);
 
@@ -101,9 +104,6 @@ export default function OnboardingPage() {
     });
   }, [router]);
 
-  // CSV Import Modal in Step 3
-  const [activeImportType, setActiveImportType] = React.useState<"customers" | "products" | null>(null);
-
   const handleFinish = async () => {
     setIsSubmitting(true);
     try {
@@ -112,6 +112,8 @@ export default function OnboardingPage() {
         team_size_bracket: teamSize,
         primary_goal: primaryGoal,
         currency,
+        monthly_revenue_target: Number(monthlyRevenueTarget) || 10000,
+        monthly_profit_target: Number(monthlyProfitTarget) || 4000,
       });
 
       if (!res.success) {
@@ -383,7 +385,7 @@ export default function OnboardingPage() {
             </motion.div>
           )}
 
-          {/* STEP 3: Starting Data & CSV Import */}
+          {/* STEP 3: Monthly Operational Targets */}
           {step === 3 && (
             <motion.div
               key="step3"
@@ -395,70 +397,71 @@ export default function OnboardingPage() {
               <Card className="p-6 md:p-8 space-y-6">
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 mb-2">
-                    Step 3 of 3: Initial Data Setup
+                    Step 3 of 3: Operational Targets
                   </div>
                   <h2 className="text-xl md:text-2xl font-bold font-display text-slate-900 dark:text-white">
-                    Bring in your existing records
+                    Set your monthly goals
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Migrate customers or inventory right now via CSV, or skip to start with a clean workspace. No hardcoded sample data will be injected.
+                    Establish your target revenue and net profit benchmarks. These directly power your executive health snapshot and goal tracker widgets.
                   </p>
                 </div>
 
-                {activeImportType ? (
-                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900">
-                    <CSVImportWizard
-                      type={activeImportType}
-                      onSuccess={() => setActiveImportType(null)}
-                      onCancel={() => setActiveImportType(null)}
-                      embedded
-                    />
-                  </div>
-                ) : (
+                <div className="space-y-4 pt-1">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Option A: Import Customers */}
-                    <div
-                      onClick={() => setActiveImportType("customers")}
-                      className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-500 cursor-pointer transition-all space-y-3 group"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                        <Users className="w-5 h-5" />
+                    {/* Revenue Target Input */}
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
+                      <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                        <TrendingUp className="w-4 h-4" />
+                        <label className="text-xs font-bold font-display text-slate-900 dark:text-slate-100">
+                          Monthly Revenue Target
+                        </label>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 transition-colors">
-                          Import Customers / Clients CSV
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Upload existing client contacts, phone numbers, and addresses.
-                        </p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={500}
+                          value={monthlyRevenueTarget}
+                          onChange={(e) => setMonthlyRevenueTarget(Number(e.target.value))}
+                          className="w-full h-10 pl-7 pr-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-mono text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+                        />
                       </div>
-                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
-                        Open importer <ChevronRight className="w-3.5 h-3.5" />
-                      </span>
+                      <p className="text-[11px] text-slate-400">Gross sales goal per month</p>
                     </div>
 
-                    {/* Option B: Import Products */}
-                    <div
-                      onClick={() => setActiveImportType("products")}
-                      className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-500 cursor-pointer transition-all space-y-3 group"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                        <Package className="w-5 h-5" />
+                    {/* Profit Target Input */}
+                    <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
+                      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                        <DollarSign className="w-4 h-4" />
+                        <label className="text-xs font-bold font-display text-slate-900 dark:text-slate-100">
+                          Monthly Net Profit Target
+                        </label>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 transition-colors">
-                          Import Products & SKUs CSV
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Upload current stock quantities, SKU codes, and cost/sell prices.
-                        </p>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-slate-400">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={250}
+                          value={monthlyProfitTarget}
+                          onChange={(e) => setMonthlyProfitTarget(Number(e.target.value))}
+                          className="w-full h-10 pl-7 pr-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 font-mono text-sm font-bold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-colors"
+                        />
                       </div>
-                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 inline-flex items-center gap-1">
-                        Open importer <ChevronRight className="w-3.5 h-3.5" />
-                      </span>
+                      <p className="text-[11px] text-slate-400">Suggested: ~40% of revenue target</p>
                     </div>
                   </div>
-                )}
+
+                  <p className="text-xs text-slate-400 text-center italic pt-1">
+                    You can change these targets at any time in Workspace Settings.
+                  </p>
+                </div>
 
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <Button variant="ghost" onClick={() => setStep(2)} className="gap-1.5">

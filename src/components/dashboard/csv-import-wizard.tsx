@@ -66,22 +66,28 @@ export function CSVImportWizard({
 
   // Handle file drop/selection
   const handleFile = (file: File) => {
-    if (!file.name.endsWith(".csv")) {
-      toast.error("Invalid file format. Please upload a .csv file.");
+    const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv") || file.type.includes("excel");
+    if (!isCsv) {
+      toast.error("Invalid file format. Please upload a valid .csv file.");
       return;
     }
 
     setFileName(file.name);
+    setRawRows([]);
+    setCsvHeaders([]);
+    setMapping({});
+
     Papa.parse<Record<string, string>>(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (h) => h.replace(/^\uFEFF/, "").trim(),
       complete: (results) => {
         if (!results.data || results.data.length === 0) {
           toast.error("The selected CSV file appears to be empty.");
           return;
         }
 
-        const headers = results.meta.fields || [];
+        const headers = (results.meta.fields || []).map((h) => h.replace(/^\uFEFF/, "").trim());
         setCsvHeaders(headers);
         setRawRows(results.data);
 
@@ -101,7 +107,7 @@ export function CSVImportWizard({
         setStep(2);
       },
       error: (err) => {
-        toast.error("Failed to parse CSV", { description: err.message });
+        toast.error("Failed to parse CSV file", { description: err.message });
       },
     });
   };
