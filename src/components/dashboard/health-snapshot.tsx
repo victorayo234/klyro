@@ -11,6 +11,7 @@ interface HealthSnapshotProps {
   overdueInvoicesCount: number;
   overdueInvoicesTotal: number;
   revenueTarget?: number;
+  profitTarget?: number;
   currency?: string;
   terminology: {
     productsLabel: string;
@@ -26,10 +27,12 @@ export function BusinessHealthSnapshot({
   overdueInvoicesCount,
   overdueInvoicesTotal,
   revenueTarget = 10000,
+  profitTarget = 4000,
   currency = "USD",
   terminology,
 }: HealthSnapshotProps) {
   const targetPercent = revenueTarget > 0 ? Math.round((totalRevenue / revenueTarget) * 100) : 0;
+  const profitPercent = profitTarget > 0 ? Math.round((netProfit / profitTarget) * 100) : 0;
   const isProfitable = netProfit >= 0;
 
   // Synthesize executive health status
@@ -80,7 +83,11 @@ export function BusinessHealthSnapshot({
 
           <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-normal">
             Gross revenue stands at <strong className="font-semibold text-slate-900 dark:text-white">{formatCurrency(totalRevenue, currency)}</strong> (
-            {targetPercent}% of your {formatCurrency(revenueTarget, currency)} target).{" "}
+            {targetPercent}% of your {formatCurrency(revenueTarget, currency)} target) with net profit at{" "}
+            <strong className={`font-semibold ${netProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+              {formatCurrency(netProfit, currency)}
+            </strong>{" "}
+            ({profitPercent}% of {formatCurrency(profitTarget, currency)} target).{" "}
             {lowStockCount > 0 ? (
               <>
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">

@@ -12,12 +12,34 @@ import {
   Clock,
   SlidersHorizontal,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SalesTrendChart, RevenueVsExpensesChart } from "@/components/dashboard/overview-charts";
 import { BusinessHealthSnapshot } from "@/components/dashboard/health-snapshot";
 import { GoalTracker } from "@/components/dashboard/goal-tracker";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+
+const SalesTrendChart = dynamic(
+  () => import("@/components/dashboard/overview-charts").then((mod) => mod.SalesTrendChart),
+  {
+    loading: () => (
+      <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+        Loading sales trend analytics…
+      </div>
+    ),
+  }
+);
+
+const RevenueVsExpensesChart = dynamic(
+  () => import("@/components/dashboard/overview-charts").then((mod) => mod.RevenueVsExpensesChart),
+  {
+    loading: () => (
+      <div className="h-64 flex items-center justify-center text-xs text-slate-400">
+        Loading revenue telemetry…
+      </div>
+    ),
+  }
+);
 import { getCustomers } from "@/lib/actions/customers";
 import { getProducts } from "@/lib/actions/products";
 import { getSales, getExpenses } from "@/lib/actions/sales";
@@ -145,6 +167,7 @@ export default async function DashboardOverviewPage() {
         overdueInvoicesCount={overdueInvoices.length}
         overdueInvoicesTotal={overdueInvoicesTotal}
         revenueTarget={revenueTarget}
+        profitTarget={profitTarget}
         currency={currency}
         terminology={{
           productsLabel: terminology.productsLabel,
@@ -153,7 +176,62 @@ export default async function DashboardOverviewPage() {
       />
 
       {/* Primary Goal-Driven Layout Arrangement */}
-      {/* 1. If PRIMARY GOAL is MANAGE INVENTORY: Lead with Inventory & Stock Reorders */}
+      {/* 1. If PRIMARY GOAL is TRACK CASHFLOW: Lead with Profit Margins, Revenue Targets & Burn */}
+      {primaryGoal === "track_cashflow" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <Card className="lg:col-span-6 p-5 border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/20 dark:bg-emerald-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                Net Operating Margin & Profit
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-emerald-700 dark:text-emerald-400">
+                {profitMargin}% Margin
+              </h3>
+              <p className="text-xs text-slate-500">
+                Net profit: {formatCurrency(netProfit, currency)} (Target: {formatCurrency(profitTarget, currency)})
+              </p>
+            </div>
+            <Link
+              href="/dashboard/sales"
+              className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 font-semibold hover:underline pt-3"
+            >
+              Analyze cashflow ledger <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+
+          <Card className="lg:col-span-6 p-5 flex flex-col justify-between border-blue-200/80 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/10">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+                Monthly Revenue Run-Rate
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 flex items-center justify-center">
+                <DollarSign className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-blue-700 dark:text-blue-400">
+                {formatCurrency(totalRevenue, currency)}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Target: {formatCurrency(revenueTarget, currency)} • Total operating expenses: {formatCurrency(totalExpenses, currency)}
+              </p>
+            </div>
+            <Link
+              href="/dashboard/sales?action=new-sale"
+              className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400 font-semibold hover:underline pt-3"
+            >
+              Record transaction <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+        </div>
+      )}
+
+      {/* 2. If PRIMARY GOAL is MANAGE INVENTORY: Lead with Inventory & Stock Reorders */}
       {primaryGoal === "manage_inventory" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
@@ -214,7 +292,62 @@ export default async function DashboardOverviewPage() {
         </div>
       )}
 
-      {/* 2. If PRIMARY GOAL is PROFESSIONAL INVOICING: Lead with Aging & Overdue */}
+      {/* 3. If PRIMARY GOAL is GET ORGANIZED CUSTOMERS (CRM): Lead with Accounts & Lifetime Value */}
+      {primaryGoal === "get_organized_customers" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <Card className="lg:col-span-6 p-5 border-blue-200/80 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+                Active Client Relationships
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 flex items-center justify-center">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-blue-700 dark:text-blue-400">
+                {activeCustomersCount} Active {terminology.customersLabel}
+              </h3>
+              <p className="text-xs text-slate-500">
+                {customers.length} total directory accounts with tracked purchase history
+              </p>
+            </div>
+            <Link
+              href="/dashboard/customers"
+              className="inline-flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400 font-semibold hover:underline pt-3"
+            >
+              Open customer directory <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+
+          <Card className="lg:col-span-6 p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">
+                Directory Pipeline
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-slate-900 dark:text-white">
+                {customers.filter((c) => c.status === "lead").length} Active Leads
+              </h3>
+              <p className="text-xs text-slate-400">
+                Prospective accounts ready for follow-up or proposals
+              </p>
+            </div>
+            <Link
+              href="/dashboard/customers?action=new"
+              className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline pt-3"
+            >
+              Add new {terminology.customersLabel.toLowerCase()} <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+        </div>
+      )}
+
+      {/* 4. If PRIMARY GOAL is PROFESSIONAL INVOICING: Lead with Aging & Overdue */}
       {primaryGoal === "professionalize_invoicing" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           <Card className="lg:col-span-6 p-5 border-rose-200/80 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/10 flex flex-col justify-between">
@@ -262,6 +395,59 @@ export default async function DashboardOverviewPage() {
               className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline pt-3"
             >
               Create new invoice <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+        </div>
+      )}
+
+      {/* 5. If PRIMARY GOAL is MANAGE TEAM: Lead with Staff Roster & Activity Audit */}
+      {primaryGoal === "manage_team" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+          <Card className="lg:col-span-6 p-5 border-purple-200/80 dark:border-purple-900/60 bg-purple-50/20 dark:bg-purple-950/10 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
+                Team Access & Operations
+              </span>
+              <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-purple-700 dark:text-purple-400">
+                {staff.length} Team Members
+              </h3>
+              <p className="text-xs text-slate-500">
+                Role-based access permissions active with audit logging
+              </p>
+            </div>
+            <Link
+              href="/dashboard/staff"
+              className="inline-flex items-center gap-1 text-xs text-purple-700 dark:text-purple-400 font-semibold hover:underline pt-3"
+            >
+              Manage staff permissions <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+
+          <Card className="lg:col-span-6 p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">Operational Events</span>
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Clock className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="space-y-1 mt-4">
+              <h3 className="text-3xl font-bold font-display text-slate-900 dark:text-white">
+                {activities.length} System Logs
+              </h3>
+              <p className="text-xs text-slate-400">
+                Recent actions: sales, inventory edits, invoice dispatches
+              </p>
+            </div>
+            <Link
+              href="/dashboard/activity"
+              className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-semibold hover:underline pt-3"
+            >
+              View audit stream <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </Card>
         </div>

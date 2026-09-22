@@ -16,13 +16,27 @@ import {
   AlertTriangle,
   FileCheck2,
   Layers,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KlyroLogo } from "@/components/ui/logo";
+import { useTheme } from "next-themes";
 
 export default function LandingPage() {
   const [activeTab, setActiveTab] = React.useState<"crm" | "inventory" | "invoices" | "analytics">("crm");
   const [billingPeriod, setBillingPeriod] = React.useState<"monthly" | "annual">("monthly");
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDarkMode = mounted ? resolvedTheme === "dark" : false;
+  const toggleTheme = () => {
+    setTheme(isDarkMode ? "light" : "dark");
+  };
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 selection:bg-blue-600 selection:text-white bg-noise">
@@ -45,7 +59,26 @@ export default function LandingPage() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Light / Dark Mode Toggle */}
+            <button
+              onClick={toggleTheme}
+              type="button"
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200/80 dark:border-slate-800 transition-colors cursor-pointer"
+              title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Toggle theme"
+            >
+              {mounted ? (
+                isDarkMode ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-slate-600" />
+                )
+              ) : (
+                <span className="w-4 h-4 block" />
+              )}
+            </button>
+
             <Link href="/login">
               <Button variant="ghost" size="sm">
                 Log in

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
 import {
   UploadCloud,
@@ -65,7 +64,7 @@ export function CSVImportWizard({
   }, [type]);
 
   // Handle file drop/selection
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv") || file.type.includes("excel");
     if (!isCsv) {
       toast.error("Invalid file format. Please upload a valid .csv file.");
@@ -76,6 +75,8 @@ export function CSVImportWizard({
     setRawRows([]);
     setCsvHeaders([]);
     setMapping({});
+
+    const Papa = (await import("papaparse")).default;
 
     Papa.parse<Record<string, string>>(file, {
       header: true,
@@ -113,7 +114,7 @@ export function CSVImportWizard({
   };
 
   // Generate downloadable sample template
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     let sampleHeaders: string[];
     let sampleRow: Record<string, string>;
 
@@ -139,6 +140,7 @@ export function CSVImportWizard({
       };
     }
 
+    const Papa = (await import("papaparse")).default;
     const csv = Papa.unparse({
       fields: sampleHeaders,
       data: [sampleRow],

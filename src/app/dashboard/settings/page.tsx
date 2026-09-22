@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const themePreference = mounted ? (theme || "system") : "system";
 
   // General business profile state
+  const [userRole, setUserRole] = React.useState<string>("staff");
   const [bizName, setBizName] = React.useState("Acme Global Solutions");
   const [bizIndustry, setBizIndustry] = React.useState("Retail & E-commerce");
   const [bizCurrency, setBizCurrency] = React.useState("USD");
@@ -60,9 +61,10 @@ export default function SettingsPage() {
   const [notifyOverdueInvoices, setNotifyOverdueInvoices] = React.useState(true);
   const [notifyLowStock, setNotifyLowStock] = React.useState(true);
   const [notifyWeeklySummary, setNotifyWeeklySummary] = React.useState(false);
+  const [notifyNewSale, setNotifyNewSale] = React.useState(false);
   const [isSendingTestEmail, setIsSendingTestEmail] = React.useState(false);
 
-  // Password change state
+  // Security password state
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [isChangingPassword, setIsChangingPassword] = React.useState(false);
@@ -82,9 +84,12 @@ export default function SettingsPage() {
       if (!user) return;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("business_id")
+        .select("business_id, role")
         .eq("id", user.id)
         .maybeSingle();
+      if (profile?.role) {
+        setUserRole(profile.role);
+      }
       if (!profile?.business_id) return;
       const { data: biz } = await supabase
         .from("businesses")
@@ -224,7 +229,7 @@ export default function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "security", label: "Security", icon: Shield },
     { id: "data", label: "Data & Export", icon: Download },
-    { id: "danger", label: "Danger Zone", icon: Trash2, danger: true },
+    ...(userRole === "owner" ? [{ id: "danger", label: "Danger Zone", icon: Trash2, danger: true }] : []),
   ];
 
   return (

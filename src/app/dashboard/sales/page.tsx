@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
+import { exportToCsv } from "@/lib/export";
 import {
   BadgeDollarSign,
   TrendingUp,
@@ -133,35 +133,31 @@ export default function SalesAndExpensesPage() {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (activeTab === "sales") {
       if (sales.length === 0) return toast.error("No sales to export");
-      const csv = Papa.unparse(
-        sales.map((s) => ({
-          ID: s.id,
-          Date: s.sale_date,
-          Customer: s.customer?.name || "Walk-in",
-          Subtotal: s.subtotal,
-          Tax: s.tax,
-          Total: s.total_amount,
-          PaymentMethod: s.payment_method,
-          Status: s.status,
-        }))
-      );
-      downloadBlob(csv, "sales-records.csv");
+      const data = sales.map((s) => ({
+        ID: s.id,
+        Date: s.sale_date,
+        Customer: s.customer?.name || "Walk-in",
+        Subtotal: s.subtotal,
+        Tax: s.tax,
+        Total: s.total_amount,
+        PaymentMethod: s.payment_method,
+        Status: s.status,
+      }));
+      await exportToCsv(data, "sales-records.csv");
     } else {
       if (expenses.length === 0) return toast.error("No expenses to export");
-      const csv = Papa.unparse(
-        expenses.map((e) => ({
-          ID: e.id,
-          Date: e.expense_date,
-          Category: e.category,
-          Vendor: e.vendor,
-          Amount: e.amount,
-          Notes: e.notes || "",
-        }))
-      );
-      downloadBlob(csv, "business-expenses.csv");
+      const data = expenses.map((e) => ({
+        ID: e.id,
+        Date: e.expense_date,
+        Category: e.category,
+        Vendor: e.vendor,
+        Amount: e.amount,
+        Notes: e.notes || "",
+      }));
+      await exportToCsv(data, "business-expenses.csv");
     }
     toast.success("Export downloaded");
   };

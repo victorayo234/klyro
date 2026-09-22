@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
+import { exportToCsv } from "@/lib/export";
 import {
   Package,
   Search,
@@ -214,7 +214,7 @@ export default function InventoryPage() {
   };
 
   // CSV Export
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (products.length === 0) {
       toast.error("No inventory data to export.");
       return;
@@ -233,15 +233,7 @@ export default function InventoryPage() {
       Status: p.quantity <= p.reorder_threshold ? "LOW STOCK" : "IN STOCK",
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `klyro-inventory-${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportToCsv(csvData, `klyro-inventory-${new Date().toISOString().split("T")[0]}.csv`);
     toast.success("Inventory catalog exported to CSV");
   };
 

@@ -211,6 +211,11 @@ CREATE POLICY "Users can view their own business"
 ON public.businesses FOR SELECT
 USING (id = public.get_user_business_id());
 
+CREATE POLICY "Authenticated users can create a business"
+ON public.businesses FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
 CREATE POLICY "Owners and Admins can update their business"
 ON public.businesses FOR UPDATE
 USING (id = public.get_user_business_id() AND public.get_user_role() IN ('owner', 'admin'));
@@ -223,6 +228,11 @@ USING (id = public.get_user_business_id() AND public.get_user_role() = 'owner');
 CREATE POLICY "Users can view profiles in their business"
 ON public.profiles FOR SELECT
 USING (business_id = public.get_user_business_id());
+
+CREATE POLICY "Authenticated users can insert their own profile"
+ON public.profiles FOR INSERT
+TO authenticated
+WITH CHECK (id = auth.uid());
 
 CREATE POLICY "Users can update their own profile"
 ON public.profiles FOR UPDATE

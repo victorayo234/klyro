@@ -34,17 +34,26 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated visitors attempting to access /dashboard to /login
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  // Redirect unauthenticated visitors attempting to access /dashboard or /onboarding to /login
+  if (!user && (request.nextUrl.pathname.startsWith("/dashboard") || request.nextUrl.pathname.startsWith("/onboarding"))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from auth pages to /dashboard
+  // Redirect authenticated users away from auth pages to their authoritative destination
   if (user && (request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("business_id, businesses(onboarding_completed)")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const biz = profile?.businesses as { onboarding_completed?: boolean } | null;
+    const dest = biz?.onboarding_completed === true ? "/dashboard" : "/onboarding";
+
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = dest;
     return NextResponse.redirect(url);
   }
 

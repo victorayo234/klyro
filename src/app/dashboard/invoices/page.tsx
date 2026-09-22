@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Papa from "papaparse";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
   FileText,
@@ -22,10 +22,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DownloadInvoicePDFButton } from "@/components/invoices/pdf-document";
 import { SavedFilters } from "@/components/dashboard/saved-filters";
 import { BulkActionsBar } from "@/components/dashboard/bulk-actions-bar";
 import { Invoice, SavedFilter, InvoiceStatus } from "@/types/database";
+import { exportToCsv } from "@/lib/export";
+
+const DownloadInvoicePDFButton = dynamic(
+  () => import("@/components/invoices/pdf-document").then((m) => m.DownloadInvoicePDFButton),
+  {
+    ssr: false,
+    loading: () => (
+      <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 opacity-60" disabled>
+        <Download className="w-3.5 h-3.5" /> PDF
+      </Button>
+    ),
+  }
+);
 import {
   getInvoices,
   markInvoicePaid,
@@ -97,7 +109,7 @@ export default function InvoicesPage() {
     }
   };
 
-  const handleExportCSV = (recordsToExport = invoices) => {
+  const handleExportCSV = async (recordsToExport = invoices) => {
     if (recordsToExport.length === 0) {
       toast.error("No invoices to export");
       return;
@@ -115,15 +127,7 @@ export default function InvoicesPage() {
       Recurring: inv.is_recurring ? inv.recurrence_interval : "No",
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `klyro-invoices-${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportToCsv(csvData, `klyro-invoices-${new Date().toISOString().split("T")[0]}.csv`);
     toast.success("Invoices exported to CSV");
   };
 

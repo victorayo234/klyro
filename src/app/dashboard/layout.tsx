@@ -42,9 +42,11 @@ export default async function DashboardLayout({
           const b = profile.businesses as { name?: string; industry?: string; onboarding_completed?: boolean };
           if (b.name) businessName = b.name;
           if (b.industry) industry = b.industry;
-          if (b.onboarding_completed === false) {
+          if (b.onboarding_completed !== true) {
             shouldRedirectToOnboarding = true;
           }
+        } else {
+          shouldRedirectToOnboarding = true;
         }
 
         if (profile.business_id) {

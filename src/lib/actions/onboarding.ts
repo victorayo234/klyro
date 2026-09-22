@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export interface OnboardingData {
@@ -15,6 +16,9 @@ export interface OnboardingData {
 export async function completeOnboarding(data: OnboardingData) {
   try {
     const supabase = await createClient();
+    const admin = getAdminClient();
+    const dbClient = admin || supabase;
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -24,7 +28,7 @@ export async function completeOnboarding(data: OnboardingData) {
     }
 
     // Get user's business_id
-    const { data: profile } = await supabase
+    const { data: profile } = await dbClient
       .from("profiles")
       .select("business_id")
       .eq("id", user.id)
@@ -34,7 +38,7 @@ export async function completeOnboarding(data: OnboardingData) {
 
     if (!businessId) {
       // Auto-provision business and profile if not created during signup
-      const { data: newBiz, error: newBizErr } = await supabase
+      const { data: newBiz, error: newBizErr } = await dbClient
         .from("businesses")
         .insert({
           name: (user.user_metadata?.business_name as string) || "My Workspace",
@@ -65,7 +69,7 @@ export async function completeOnboarding(data: OnboardingData) {
     }
 
     // Update business with answers and financial targets
-    const { error: updateError } = await supabase
+    const { error: updateError } = await dbClient
       .from("businesses")
       .update({
         industry: data.industry,

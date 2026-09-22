@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
+import { exportToCsv } from "@/lib/export";
 import {
   BarChart3,
   TrendingUp,
@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
   }, [customers]);
 
   // Dynamic CSV Export
-  const handleExportSummary = () => {
+  const handleExportSummary = async () => {
     const exportData = [
       {
         Metric: "Gross Revenue",
@@ -154,16 +154,8 @@ export default function AnalyticsPage() {
       },
     ];
 
-    const csv = Papa.unparse(exportData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `klyro_analytics_${dateRange}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Financial analytics summary exported");
+    await exportToCsv(exportData, `klyro_analytics_${dateRange}.csv`);
+    toast.success("Analytics summary exported to CSV");
   };
 
   const hasData = sales.length > 0 || expenses.length > 0;

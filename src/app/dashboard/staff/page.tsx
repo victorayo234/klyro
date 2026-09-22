@@ -19,10 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Profile, Role } from "@/types/database";
 import { getStaffMembers, inviteStaffMember, updateStaffRole } from "@/lib/actions/staff";
+import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 
 export default function StaffPage() {
   const [staff, setStaff] = React.useState<Profile[]>([]);
+  const [currentUserRole, setCurrentUserRole] = React.useState<Role>("staff");
   const [isLoading, setIsLoading] = React.useState(true);
 
   // Invite Modal State
@@ -37,11 +39,27 @@ export default function StaffPage() {
   const [selectedStaff, setSelectedStaff] = React.useState<Profile | null>(null);
   const [newRole, setNewRole] = React.useState<Role>("staff");
 
+  const isOwnerOrAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getStaffMembers();
-      setStaff(data);
+      const supabase = createClient();
+      const [{ data: staffData }, { data: authUser }] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: true }),
+        supabase.auth.getUser(),
+      ]);
+
+      if (staffData) setStaff(staffData as Profile[]);
+
+      if (authUser?.user) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", authUser.user.id)
+          .maybeSingle();
+        if (prof?.role) setCurrentUserRole(prof.role as Role);
+      }
     } catch {
       toast.error("Failed to load staff list");
     } finally {
@@ -115,10 +133,16 @@ export default function StaffPage() {
           </p>
         </div>
 
-        <Button size="sm" onClick={() => setIsInviteModalOpen(true)} className="gap-1.5 shadow-xs">
-          <Plus className="w-3.5 h-3.5" />
-          Invite Team Member
-        </Button>
+        {isOwnerOrAdmin ? (
+          <Button size="sm" onClick={() => setIsInviteModalOpen(true)} className="gap-1.5 shadow-xs">
+            <Plus className="w-3.5 h-3.5" />
+            Invite Team Member
+          </Button>
+        ) : (
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+            Role: {currentUserRole.toUpperCase()}
+          </span>
+        )}
       </div>
 
       {/* Role Permission Guidance Banner */}
@@ -174,7 +198,7 @@ export default function StaffPage() {
                     {formatDate(member.created_at)}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {member.role !== "owner" && (
+                    {isOwnerOrAdmin && member.role !== "owner" && (
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => {

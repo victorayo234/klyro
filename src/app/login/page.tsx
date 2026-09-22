@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { KlyroLogo } from "@/components/ui/logo";
-import { createClient } from "@/lib/supabase/client";
+import { signInAction } from "@/lib/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,25 +39,27 @@ export default function LoginPage() {
     }
 
     try {
-      const supabase = createClient();
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const res = await signInAction({
         email,
         password,
       });
 
-      if (authError) {
-        setError(authError.message);
+      if (!res.success) {
+        const errorMsg = res.error || "Authentication failed. Please check your credentials.";
+        setError(errorMsg);
         toast.error("Sign in failed", {
-          description: authError.message,
+          description: errorMsg,
         });
         setIsLoading(false);
         return;
       }
 
       toast.success("Welcome back!", {
-        description: "Redirecting to your dashboard...",
+        description: res.destination === "/onboarding"
+          ? "Redirecting to workspace setup…"
+          : "Redirecting to your dashboard…",
       });
-      router.push("/dashboard");
+      router.push(res.destination || "/dashboard");
       router.refresh();
     } catch (err: unknown) {
       const msg =

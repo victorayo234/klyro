@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
+import { exportToCsv } from "@/lib/export";
 import {
   Users,
   Search,
@@ -198,8 +198,8 @@ export default function CustomersPage() {
     }
   };
 
-  // CSV Export via PapaParse
-  const handleExportCSV = () => {
+  // CSV Export via dynamic PapaParse
+  const handleExportCSV = async () => {
     if (customers.length === 0) {
       toast.error("No customer records to export.");
       return;
@@ -217,15 +217,7 @@ export default function CustomersPage() {
       DateAdded: c.created_at,
     }));
 
-    const csv = Papa.unparse(csvData);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `klyro-customers-${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    await exportToCsv(csvData, `klyro-customers-${new Date().toISOString().split("T")[0]}.csv`);
     toast.success("Customer list exported to CSV");
   };
 

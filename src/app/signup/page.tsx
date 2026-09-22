@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { KlyroLogo } from "@/components/ui/logo";
-import { createClient } from "@/lib/supabase/client";
+import { signUpAction } from "@/lib/actions/auth";
 import { cn } from "@/lib/utils";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -117,80 +117,28 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const res = await signUpAction({
+        fullName,
         email,
         password,
-        options: {
-          data: { full_name: fullName, business_name: businessName },
-        },
+        businessName,
+        industry,
       });
 
-      if (authError) {
-        setError(authError.message);
-        toast.error("Signup failed", { description: authError.message });
+      if (!res.success) {
+        const errorMsg = res.error || "Could not complete registration. Please try again.";
+        setError(errorMsg);
+        toast.error("Registration failed", { description: errorMsg });
         return;
-      }
-
-      let session = authData.session;
-
-      // If session is null (e.g. if Supabase 'Confirm email' setting is still enabled on server), attempt immediate password sign in
-      if (!session) {
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          const isUnconfirmed = signInError.message.toLowerCase().includes("confirm") || signInError.message.toLowerCase().includes("not confirmed");
-          const customError = isUnconfirmed
-            ? "Your account was created, but 'Confirm email' is still enabled in your Supabase dashboard. Please turn off 'Confirm email' in Supabase Dashboard → Authentication → Providers → Email to enable instant signup."
-            : signInError.message;
-          setError(customError);
-          toast.error("Action required in Supabase", { description: customError, duration: 8000 });
-          return;
-        }
-
-        session = signInData.session;
-      }
-
-      const user = authData.user || session?.user;
-      if (user) {
-        const { data: business, error: bizError } = await supabase
-          .from("businesses")
-          .insert({ name: businessName, industry, currency: "USD" })
-          .select()
-          .single();
-
-        if (bizError) {
-          console.warn("Client-side business creation skipped/failed:", bizError.message);
-        } else if (business) {
-          const { error: profErr } = await supabase.from("profiles").upsert({
-            id: user.id,
-            business_id: business.id,
-            full_name: fullName,
-            email,
-            role: "owner",
-          });
-          if (profErr) {
-            console.warn("Client-side profile upsert skipped/failed:", profErr.message);
-          }
-        }
       }
 
       toast.success("Workspace created!", {
         description: "Welcome to Klyro! Opening workspace setup…",
       });
-      router.push("/onboarding");
+      router.push(res.destination || "/onboarding");
       router.refresh();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message.includes("fetch")
-            ? "Cannot reach Supabase. Check your .env.local credentials."
-            : err.message
-          : "An unexpected error occurred.";
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
       setError(msg);
       toast.error("Registration error", { description: msg });
     } finally {

@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
+import { exportToCsv } from "@/lib/export";
 import {
   History,
   Search,
@@ -44,27 +44,18 @@ export default function ActivityLogsPage() {
     loadLogs();
   }, []);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (logs.length === 0) return toast.error("No activity logs to export");
-    const csv = Papa.unparse(
-      logs.map((l) => ({
-        ID: l.id,
-        Date: l.created_at,
-        User: l.user_name || "System",
-        EntityType: l.entity_type,
-        Action: l.action,
-        Details: JSON.stringify(l.details),
-      }))
-    );
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `klyro-audit-logs-${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Activity audit log exported");
+    const data = logs.map((l) => ({
+      ID: l.id,
+      Date: l.created_at,
+      User: l.user_name || "System",
+      EntityType: l.entity_type,
+      Action: l.action,
+      Details: JSON.stringify(l.details),
+    }));
+    await exportToCsv(data, `klyro-audit-logs-${new Date().toISOString().split("T")[0]}.csv`);
+    toast.success("Activity logs exported to CSV");
   };
 
   const getEntityIcon = (type: string) => {
